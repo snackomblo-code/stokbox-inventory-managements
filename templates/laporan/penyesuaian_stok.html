@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% block title %}Laporan Penyesuaian Stok{% endblock %}
+{% block page_title %}Laporan Penyesuaian Stok{% endblock %}
+{% block page_subtitle %}Rekap penyesuaian / koreksi stok{% endblock %}
+{% block page_action %}
+<a href="/api/laporan/penyesuaian-stok/print" target="_blank" class="btn btn-light"><i class="bi bi-file-earmark-pdf"></i> Cetak PDF</a>
+{% endblock %}
+
+{% block content %}
+<div class="panel mb-3">
+    <div class="panel-body">
+        <div class="row g-2 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label">Dari Tanggal</label>
+                <input type="date" class="form-control" id="filterTglAwal">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Sampai Tanggal</label>
+                <input type="date" class="form-control" id="filterTglAkhir">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Jenis</label>
+                <select class="form-select" id="filterJenis">
+                    <option value="">Semua</option>
+                    <option value="tambah">Bertambah</option>
+                    <option value="kurang">Berkurang</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Status</label>
+                <select class="form-select" id="filterStatus">
+                    <option value="">Semua</option>
+                    <option value="selesai">Aktif</option>
+                    <option value="dibatalkan">Dibatalkan</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <button class="btn btn-light w-100" id="btnFilter"><i class="bi bi-funnel"></i> Filter</button>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="panel">
+    <div class="panel-body">
+        <div id="tableWrapper"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', async () => {
+    await loadTable();
+    document.getElementById('btnFilter').addEventListener('click', loadTable);
+});
+
+async function loadTable() {
+    const params = new URLSearchParams();
+    const t1 = document.getElementById('filterTglAwal').value;
+    const t2 = document.getElementById('filterTglAkhir').value;
+    const j = document.getElementById('filterJenis').value;
+    const s = document.getElementById('filterStatus').value;
+    if (t1) params.set('tanggal_awal', t1);
+    if (t2) params.set('tanggal_akhir', t2);
+    if (j) params.set('jenis', j);
+    if (s) params.set('status', s);
+    try {
+        const res = await api.get(`/api/laporan/penyesuaian-stok?${params}`);
+        renderTable(res.data || []);
+    } catch (err) { toast('Gagal', err.message, 'danger'); }
+}
+
+function renderTable(items) {
+    const html = `
+        <table class="table table-hover align-middle">
+            <thead>
+                <tr>
+                    <th>Tanggal</th>
+                    <th>No. Penyesuaian</th>
+                    <th>Barang</th>
+                    <th class="text-end">Sistem</th>
+                    <th class="text-end">Fisik</th>
+                    <th class="text-end">Selisih</th>
+                    <th>Jenis</th>
+                    <th>Status</th>
+                    <th>Alasan</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${items.length === 0
+                    ? '<tr><td colspan="9" class="text-center text-secondary py-4">Belum ada data.</td></tr>'
+                    : items.map(it => {
+                        const selisih = parseInt(it.selisih || 0);
+                        const sel = selisih > 0 ? `<span class="text-success">+${formatNumber(selisih)}</span>`
+                            : selisih < 0 ? `<span class="text-danger">${formatNumber(selisih)}</span>`
+                            : '0';
+                        const statusBadge = it.status === 'dibatalkan' ? '<span class="badge badge-status-batal">Dibatalkan</span>' : '<span class="badge badge-status-aktif">Aktif</span>';
+                        return `
+                        <tr>
+                            <td>${formatDate(it.tanggal_penyesuaian)}</td>
+                            <td class="mono">${escapeHtml(it.no_penyesuaian || '-')}</td>
+                            <td>${escapeHtml(it.nama_barang || '-')}</td>
+                            <td class="text-end">${formatNumber(it.stok_sistem)}</td>
+                            <td class="text-end">${formatNumber(it.stok_fisik)}</td>
+                            <td class="text-end">${sel}</td>
+                            <td>${escapeHtml(it.jenis || '-')}</td>
+                            <td>${statusBadge}</td>
+                            <td>${escapeHtml(it.alasan || '-')}</td>
+                        </tr>`;
+                    }).join('')}
+            </tbody>
+        </table>
+    `;
+    document.getElementById('tableWrapper').innerHTML = html;
+}
+</script>
+{% endblock %}

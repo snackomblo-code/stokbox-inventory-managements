@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% block title %}Backup Database{% endblock %}
+{% block page_title %}Backup Database{% endblock %}
+{% block page_subtitle %}Unduh dan pulihkan salinan basis data{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+    <div class="col-md-6">
+        <div class="panel h-100">
+            <div class="panel-body">
+                <div class="alert alert-warning">
+                    <h6 class="mb-1"><i class="bi bi-exclamation-triangle-fill"></i> Perhatian</h6>
+                    <p class="mb-0 small">
+                        Tindakan ini akan mengunduh seluruh data aplikasi dalam format JSON.
+                        Simpan file di tempat yang aman.
+                    </p>
+                </div>
+
+                <div class="text-center my-4">
+                    <i class="bi bi-database-down text-primary" style="font-size: 4rem;"></i>
+                    <h5 class="mt-2">Backup Seluruh Data</h5>
+                    <p class="text-secondary small">Berisi: kategori, suplier, barang, transaksi, user, dan pengaturan.</p>
+                    <button class="btn btn-primary btn-lg" id="btnDownload">
+                        <i class="bi bi-download"></i> Download Backup
+                    </button>
+                </div>
+
+                <hr>
+                <h6 class="mb-2">Statistik Database</h6>
+                <div id="statsArea" class="row g-2">
+                    <div class="col-12 text-center py-3"><div class="spinner"></div></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="panel h-100">
+            <div class="panel-body">
+                <div class="alert alert-danger">
+                    <h6 class="mb-1"><i class="bi bi-exclamation-triangle-fill"></i> Peringatan</h6>
+                    <p class="mb-0 small">
+                        Restore akan menambahkan data dari file backup ke database.
+                        Data dengan ID yang sudah ada akan dilewati (tidak ditimpa).
+                    </p>
+                </div>
+
+                <div class="text-center my-4">
+                    <i class="bi bi-database-up text-danger" style="font-size: 4rem;"></i>
+                    <h5 class="mt-2">Restore Data</h5>
+                    <p class="text-secondary small">Upload file backup JSON untuk memulihkan data.</p>
+                    <div class="mb-3">
+                        <input type="file" class="form-control" id="fileInput" accept=".json">
+                    </div>
+                    <button class="btn btn-danger btn-lg" id="btnRestore" disabled>
+                        <i class="bi bi-upload"></i> Restore
+                    </button>
+                    <div id="restoreResult" class="mt-3"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', loadStats);
+document.getElementById('btnDownload').addEventListener('click', () => downloadFile('/api/backup/download', `backup-${new Date().toISOString().slice(0,10)}.json`));
+
+document.getElementById('fileInput').addEventListener('change', function() {
+    document.getElementById('btnRestore').disabled = !this.files.length;
+    document.getElementById('restoreResult').innerHTML = '';
+});
+
+document.getElementById('btnRestore').addEventListener('click', doRestore);
+
+async function loadStats() {
+    try {
+        const res = await api.get('/api/backup/stats');
+        const s = res.data || {};
+        const cards = [
+            ['kategori', 'Kategori', s.kategori],
+            ['suplier', 'Suplier', s.suplier],
+            ['barang', 'Barang', s.barang],
+            ['barang_masuk', 'Barang Masuk', s.barang_masuk],
+            ['barang_keluar', 'Barang Keluar', s.barang_keluar],
+            ['penyesuaian', 'Penyesuaian', s.penyesuaian],
+            ['users', 'User', s.users],
+        ];
+        document.getElementById('statsArea').innerHTML = cards.map(([k, label, val]) => `
+            <div class="col-md-3 col-6">
+                <div class="border rounded p-2 text-center">
+                    <div class="text-secondary small">${label}</div>
+                    <div class="fw-bold">${formatNumber(val || 0)}</div>
+                </div>
+            </div>
+        `).join('');
+    } catch (err) {
+        document.getElementById('statsArea').innerHTML = `<div class="col-12 text-danger">${escapeHtml(err.message)}</div>`;
+    }
+}
+
+async function doRestore() {
+    const file = document.getElementById('fileInput').files[0];
+    if (!file) return;
+
+    const btn = document.getElementById('btnRestore');
+    const result = document.getElementById('restoreResult');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Merestore...';
+    result.innerHTML = '';
+
+    try {
+        const text = await file.text();
+        const data = JSON.parse(text);
+        const res = await api.post('/api/backup/restore', data);
+        const counts = res.counts || {};
+        const detail = Object.entries(counts).map(([k, v]) => `${k}: ${v}`).join(', ');
+        result.innerHTML = `<div class="alert alert-success mb-0">${escapeHtml(res.message)}<br><small class="text-secondary">${detail}</small></div>`;
+        loadStats();
+    } catch (err) {
+        result.innerHTML = `<div class="alert alert-danger mb-0">${escapeHtml(err.message)}</div>`;
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-upload"></i> Restore';
+        document.getElementById('fileInput').value = '';
+    }
+}
+</script>
+{% endblock %}

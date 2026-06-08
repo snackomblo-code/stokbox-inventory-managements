@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}Detail Barang Keluar{% endblock %}
+{% block page_title %}Detail Barang Keluar{% endblock %}
+{% block page_action %}
+<a href="/barang-keluar" class="btn btn-light"><i class="bi bi-arrow-left"></i> Kembali</a>
+{% endblock %}
+
+{% block content %}
+<div id="detailContent" class="text-center py-5">
+    <div class="spinner"></div>
+    <div class="text-secondary mt-2">Memuat data...</div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const BK_ID = {{ transaksi_id|tojson }};
+document.addEventListener('DOMContentLoaded', loadDetail);
+
+async function loadDetail() {
+    try {
+        const d = await api.get(`/api/barang-keluar/${BK_ID}`);
+        render(d);
+    } catch (err) {
+        document.getElementById('detailContent').innerHTML = `<div class="text-danger">${escapeHtml(err.message)}</div>`;
+    }
+}
+
+function render(d) {
+    const total = (d.detail || []).reduce((s, x) => s + (parseInt(x.jumlah) || 0), 0);
+    document.getElementById('detailContent').outerHTML = `
+    <div id="detailContent">
+        <div class="panel mb-3">
+            <div class="panel-body">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <table class="table table-sm table-borderless mb-0">
+                            <tr><th width="140" class="text-secondary fw-normal">No. Transaksi</th><td class="mono">${escapeHtml(d.no_transaksi)}</td></tr>
+                            <tr><th class="text-secondary fw-normal">Tanggal</th><td>${formatDate(d.tanggal_keluar)}</td></tr>
+                            <tr><th class="text-secondary fw-normal">Tujuan</th><td>${escapeHtml(d.tujuan_penerima || '-')}</td></tr>
+                            <tr><th class="text-secondary fw-normal">Keperluan</th><td>${escapeHtml(d.keperluan || '-')}</td></tr>
+                        </table>
+                    </div>
+                    <div class="col-md-6">
+                        <table class="table table-sm table-borderless mb-0">
+                            <tr><th width="140" class="text-secondary fw-normal">User</th><td>${escapeHtml(d.nama_user || '-')}</td></tr>
+                            <tr><th class="text-secondary fw-normal">Nomor Dokumen</th><td>${escapeHtml(d.nomor_dokumen || '-')}</td></tr>
+                            <tr><th class="text-secondary fw-normal">Catatan</th><td>${escapeHtml(d.catatan || '-')}</td></tr>
+                            <tr><th class="text-secondary fw-normal">Dibuat</th><td>${formatDateTime(d.created_at)}</td></tr>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel">
+            <div class="panel-header">
+                <h6 class="panel-title">Item Barang</h6>
+                <a href="/api/transaksi/barang-keluar/${d.id}/print" target="_blank" class="btn btn-sm btn-light"><i class="bi bi-file-earmark-pdf"></i> Cetak PDF</a>
+            </div>
+            <div class="panel-body p-0">
+                <table class="table mb-0">
+                    <thead>
+                        <tr>
+                            <th width="50">#</th>
+                            <th>Kode</th>
+                            <th>Nama</th>
+                            <th width="100">Satuan</th>
+                            <th width="120" class="text-end">Jumlah</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${(d.detail || []).map((it, i) => `
+                            <tr>
+                                <td>${i + 1}</td>
+                                <td class="mono">${escapeHtml(it.kode_barang)}</td>
+                                <td>${escapeHtml(it.nama_barang)}</td>
+                                <td>${escapeHtml(it.satuan)}</td>
+                                <td class="text-end">${formatNumber(it.jumlah)}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                    <tfoot>
+                        <tr class="table-light">
+                            <th colspan="4" class="text-end">Total</th>
+                            <th class="text-end">${formatNumber(total)}</th>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+    </div>`;
+}
+</script>
+{% endblock %}

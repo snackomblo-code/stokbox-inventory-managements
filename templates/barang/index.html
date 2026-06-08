@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Data Barang{% endblock %}
+{% block page_title %}Data Barang{% endblock %}
+{% block page_subtitle %}Kelola data barang inventaris{% endblock %}
+{% block page_action %}
+{% if is_admin %}
+<a href="/api/barang/import-template" class="btn btn-light">
+    <i class="bi bi-file-earmark-spreadsheet"></i> Template Excel
+</a>
+<a href="/barang/import" class="btn btn-light">
+    <i class="bi bi-upload"></i> Import Excel
+</a>
+<a href="/barang/print-qrcode" class="btn btn-light" target="_blank">
+    <i class="bi bi-qr-code"></i> Print QR
+</a>
+<a href="/barang/print-barcode" class="btn btn-light" target="_blank">
+    <i class="bi bi-upc"></i> Print Barcode
+</a>
+<a href="/barang/create" class="btn btn-primary">
+    <i class="bi bi-plus-lg"></i> Tambah Barang
+</a>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="panel mb-3">
+    <div class="panel-body">
+        <div class="row g-2 align-items-end">
+            <div class="col-md-5">
+                <label class="form-label">Cari</label>
+                <input type="text" class="form-control" id="filterKeyword" placeholder="Kode atau nama barang...">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Kategori</label>
+                <select class="form-select" id="filterKategori">
+                    <option value="">Semua</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Stok</label>
+                <select class="form-select" id="filterStok">
+                    <option value="">Semua</option>
+                    <option value="hampir-habis">Hampir Habis</option>
+                    <option value="tersedia">Tersedia</option>
+                    <option value="habis">Habis</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <button class="btn btn-light w-100" id="btnReset"><i class="bi bi-arrow-counterclockwise"></i> Reset</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="panel">
+    <div class="panel-body">
+        <div id="barangTable_wrapper"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/barang.js?v=5"></script>
+{% endblock %}

@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% block title %}Detail Barang{% endblock %}
+{% block page_title %}Detail Barang{% endblock %}
+{% block page_action %}
+<a href="/barang" class="btn btn-light">
+    <i class="bi bi-arrow-left"></i> Kembali
+</a>
+{% if is_admin %}
+<a href="/barang/{{ barang_id }}/edit" class="btn btn-primary">
+    <i class="bi bi-pencil"></i> Edit
+</a>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<div id="detailContent" class="text-center py-5">
+    <div class="spinner"></div>
+    <div class="text-secondary mt-2">Memuat data...</div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const BARANG_ID = {{ barang_id|tojson }};
+document.addEventListener('DOMContentLoaded', loadDetail);
+
+const TIPE_LABEL = {
+    masuk: '<span class="badge text-bg-success">Masuk</span>',
+    keluar: '<span class="badge text-bg-danger">Keluar</span>',
+    penyesuaian: '<span class="badge text-bg-info">Penyesuaian</span>',
+    edit_stok_awal: '<span class="badge text-bg-primary">Edit Awal</span>',
+    batal_penyesuaian: '<span class="badge text-bg-warning">Batal Penyesuaian</span>',
+};
+
+async function loadDetail() {
+    try {
+        const [d, riwayat] = await Promise.all([
+            api.get(`/api/barang/${BARANG_ID}`),
+            api.get(`/api/barang/${BARANG_ID}/riwayat-stok`),
+        ]);
+        render(d, riwayat.data || []);
+    } catch (err) {
+        document.getElementById('detailContent').innerHTML = `<div class="text-danger">${escapeHtml(err.message)}</div>`;
+    }
+}
+
+function render(d, riwayat) {
+    const foto = d.foto && d.foto.url
+        ? `<img src="${d.foto.url}" class="preview-photo rounded" alt="">`
+        : `<div class="preview-placeholder"><i class="bi bi-box"></i></div>`;
+    const stok = parseInt(d.stok || 0);
+    const min = parseInt(d.stok_minimum || 0);
+    const status = stok === 0 ? '<span class="badge badge-status-habis">Habis</span>'
+        : stok <= min ? '<span class="badge badge-status-hampir">Hampir Habis</span>'
+        : '<span class="badge badge-status-tersedia">Tersedia</span>';
+    document.getElementById('detailContent').outerHTML = `
+    <div id="detailContent">
+        <div class="panel mb-3">
+            <div class="panel-body">
+                <div class="row g-3">
+                    <div class="col-md-2 text-center">${foto}</div>
+                    <div class="col-md-10">
+                        <h4 class="mb-1">${escapeHtml(d.nama_barang)}</h4>
+                        <div class="text-secondary mono mb-2">${escapeHtml(d.kode_barang)}</div>
+                        <table class="table table-sm table-borderless mb-0" style="max-width: 600px">
+                            <tr><th width="120" class="text-secondary fw-normal">Kategori</th><td>${d.nama_kategori ? `<i class="bi ${d.icon_kategori || 'bi-tag'}"></i> ${escapeHtml(d.nama_kategori)}` : '-'}</td></tr>
+                            <tr><th class="text-secondary fw-normal">Satuan</th><td>${escapeHtml(d.satuan || '-')}</td></tr>
+                            <tr><th class="text-secondary fw-normal">Lokasi</th><td>${escapeHtml(d.lokasi_barang || '-')}</td></tr>
+                            <tr><th class="text-secondary fw-normal">Stok</th><td><strong>${formatNumber(stok)}</strong> ${status}</td></tr>
+                            <tr><th class="text-secondary fw-normal">Stok Minimum</th><td>${formatNumber(min)}</td></tr>
+                            <tr><th class="text-secondary fw-normal">Dibuat</th><td>${formatDateTime(d.created_at)}</td></tr>
+                            <tr><th class="text-secondary fw-normal">Diubah</th><td>${formatDateTime(d.updated_at)}</td></tr>
+                        </table>
+                        ${d.deskripsi_barang ? `<hr><p class="text-secondary mb-0">${escapeHtml(d.deskripsi_barang)}</p>` : ''}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-3">
+            <div class="col-md-6">
+                <div class="panel h-100">
+                    <div class="panel-header"><h6 class="panel-title">QR Code</h6></div>
+                    <div class="panel-body text-center">
+                        <img src="/api/barcode/barang/${d.id}/qrcode" alt="QR Code" style="max-width:200px; height:200px; background:#fff; padding:8px; border:1px solid var(--admin-border); border-radius:6px">
+                        <div class="mt-2"><a href="/api/barcode/barang/${d.id}/qrcode" target="_blank" class="btn btn-sm btn-light">Unduh</a></div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="panel h-100">
+                    <div class="panel-header"><h6 class="panel-title">Barcode</h6></div>
+                    <div class="panel-body text-center">
+                        <img src="/api/barcode/barang/${d.id}/barcode" alt="Barcode" style="max-width:100%; height:80px; background:#fff; padding:8px; border:1px solid var(--admin-border); border-radius:6px">
+                        <div class="mt-2"><a href="/api/barcode/barang/${d.id}/barcode" target="_blank" class="btn btn-sm btn-light">Unduh</a></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel mt-3">
+            <div class="panel-header"><h6 class="panel-title">Riwayat Stok</h6></div>
+            <div class="panel-body p-0" id="riwayatStokContainer">
+                <div class="text-center py-4 text-secondary">Memuat riwayat stok...</div>
+            </div>
+        </div>
+    </div>`;
+
+    renderRiwayat(riwayat);
+}
+
+function renderRiwayat(items) {
+    const container = document.getElementById('riwayatStokContainer');
+    if (!items || !items.length) {
+        container.innerHTML = '<div class="text-center py-4 text-secondary">Belum ada riwayat perubahan stok.</div>';
+        return;
+    }
+    container.innerHTML = `<div class="table-responsive"><table class="table table-sm align-middle mb-0">
+        <thead><tr><th>Waktu</th><th>Tipe</th><th class="text-end">Sebelum</th><th class="text-end">Perubahan</th><th class="text-end">Sesudah</th><th>Referensi</th><th>Keterangan</th></tr></thead>
+        <tbody>${items.map(r => {
+            const perubahan = parseInt(r.perubahan || 0);
+            const cls = perubahan > 0 ? 'text-success' : (perubahan < 0 ? 'text-danger' : 'text-secondary');
+            const icon = perubahan > 0 ? '▲' : (perubahan < 0 ? '▼' : '•');
+            const tipeLabel = TIPE_LABEL[r.tipe] || escapeHtml(r.tipe);
+            return `<tr>
+                <td class="text-nowrap small">${formatDateTime(r.created_at)}</td>
+                <td>${tipeLabel}</td>
+                <td class="text-end">${formatNumber(r.stok_sebelum)}</td>
+                <td class="text-end fw-semibold ${cls}">${icon} ${formatNumber(Math.abs(perubahan))}</td>
+                <td class="text-end fw-semibold">${formatNumber(r.stok_sesudah)}</td>
+                <td class="small">${r.ref_no ? escapeHtml(r.ref_no) : '-'}</td>
+                <td class="small text-secondary">${escapeHtml(r.keterangan || '-')}</td>
+            </tr>`;
+        }).join('')}</tbody></table></div>`;
+}
+</script>
+{% endblock %}

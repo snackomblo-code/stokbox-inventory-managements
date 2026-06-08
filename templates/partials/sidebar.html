@@ -1,0 +1,122 @@
+<aside class="sidebar" id="appSidebar">
+    <div class="brand-box">
+        <div class="d-flex align-items-center gap-3">
+            {% if app_logo %}
+            <img src="{{ app_logo }}" alt="Logo {{ app_name }}" class="brand-logo">
+            {% else %}
+            <div class="brand-mark">{{ app_name[0]|upper }}</div>
+            {% endif %}
+            <div class="min-w-0 brand-text">
+                <div class="fw-bold text-truncate">{{ app_name }}</div>
+                <div class="small text-white-50 text-truncate">Admin Panel</div>
+            </div>
+        </div>
+        <button class="btn btn-sm btn-light mobile-menu-button" type="button" id="sidebarToggle">
+            <i class="bi bi-list"></i>
+        </button>
+    </div>
+
+    <div class="sidebar-footer p-2 d-none d-lg-block">
+        <div class="d-flex align-items-center gap-2 min-w-0">
+            {% if user_photo %}
+            <img src="{{ user_photo }}" alt="{{ user_name }}" class="sidebar-user-photo">
+            {% else %}
+            <div class="sidebar-user-photo-placeholder avatar">{{ user_name[0]|upper if user_name else '?' }}</div>
+            {% endif %}
+            <div class="min-w-0">
+                <div class="fw-semibold small text-white text-truncate">{{ user_name or '-' }}</div>
+                <div class="small text-white-50 text-truncate" style="font-size: .72rem;">{{ user_role_label }}</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="sidebar-menu-wrap" id="sidebarMenu">
+        <div class="menu-label">Menu Utama</div>
+        <nav class="sidebar-menu">
+            <a href="/dashboard" class="sidebar-link {% if active_menu == 'dashboard' %}active{% endif %}">
+                <i class="bi bi-grid-1x2-fill"></i><span>Dashboard</span>
+            </a>
+        </nav>
+
+        {% if is_inventory_role %}
+        <div class="menu-label">Master Data</div>
+        <nav class="sidebar-menu">
+            {% if is_admin %}
+            <a href="/kategori" class="sidebar-link {% if active_menu == 'kategori' %}active{% endif %}">
+                <i class="bi bi-tags-fill"></i><span>Data Kategori</span>
+            </a>
+            {% endif %}
+            <a href="/barang" class="sidebar-link {% if active_menu == 'barang' %}active{% endif %}">
+                <i class="bi bi-box-seam-fill"></i><span>Data Barang</span>
+            </a>
+            {% if is_admin %}
+            <a href="/suplier" class="sidebar-link {% if active_menu == 'suplier' %}active{% endif %}">
+                <i class="bi bi-truck"></i><span>Data Suplier</span>
+            </a>
+            {% endif %}
+        </nav>
+
+        <div class="menu-label">Transaksi</div>
+        <nav class="sidebar-menu">
+            <a href="/barang-masuk" class="sidebar-link {% if active_menu == 'barang-masuk' %}active{% endif %}">
+                <i class="bi bi-box-arrow-in-down"></i><span>Barang Masuk</span>
+            </a>
+            <a href="/barang-keluar" class="sidebar-link {% if active_menu == 'barang-keluar' %}active{% endif %}">
+                <i class="bi bi-box-arrow-up"></i><span>Barang Keluar</span>
+            </a>
+            {% if is_admin %}
+            <a href="/stok-penyesuaian" class="sidebar-link {% if active_menu == 'stok-penyesuaian' %}active{% endif %}">
+                <i class="bi bi-sliders"></i><span>Penyesuaian Stok</span>
+            </a>
+            {% endif %}
+        </nav>
+
+        <div class="menu-label">Laporan</div>
+        <nav class="sidebar-menu">
+            <a href="/laporan/stok" class="sidebar-link {% if active_menu == 'laporan-stok' %}active{% endif %}">
+                <i class="bi bi-clipboard-data-fill"></i><span>Laporan Stok</span>
+            </a>
+            <a href="/laporan/barang-masuk" class="sidebar-link {% if active_menu == 'laporan-barang-masuk' %}active{% endif %}">
+                <i class="bi bi-journal-arrow-down"></i><span>Lap. Barang Masuk</span>
+            </a>
+            <a href="/laporan/barang-keluar" class="sidebar-link {% if active_menu == 'laporan-barang-keluar' %}active{% endif %}">
+                <i class="bi bi-journal-arrow-up"></i><span>Lap. Barang Keluar</span>
+            </a>
+            {% if is_admin %}
+            <a href="/laporan/penyesuaian-stok" class="sidebar-link {% if active_menu == 'laporan-penyesuaian-stok' %}active{% endif %}">
+                <i class="bi bi-journal-check"></i><span>Lap. Penyesuaian</span>
+            </a>
+            {% endif %}
+        </nav>
+        {% endif %}
+
+        <div class="menu-label">Akun</div>
+        <nav class="sidebar-menu">
+            {% if is_admin %}
+            <a href="/user" class="sidebar-link {% if active_menu == 'users' %}active{% endif %}">
+                <i class="bi bi-people-fill"></i><span>Data User</span>
+            </a>
+            {% endif %}
+            <a href="/profile" class="sidebar-link {% if active_menu == 'profile' %}active{% endif %}">
+                <i class="bi bi-person-circle"></i><span>Profil</span>
+            </a>
+            <a href="/change-password" class="sidebar-link {% if active_menu == 'change-password' %}active{% endif %}">
+                <i class="bi bi-key-fill"></i><span>Ganti Password</span>
+            </a>
+            {% if is_admin %}
+            <a href="/setting" class="sidebar-link {% if active_menu == 'setting' %}active{% endif %}">
+                <i class="bi bi-gear-fill"></i><span>Setting</span>
+            </a>
+            <a href="/aktivitas" class="sidebar-link {% if active_menu == 'aktivitas' %}active{% endif %}">
+                <i class="bi bi-activity"></i><span>Catatan Aktivitas</span>
+            </a>
+            <a href="/backup" class="sidebar-link {% if active_menu == 'backup' %}active{% endif %}">
+                <i class="bi bi-database-down"></i><span>Backup Database</span>
+            </a>
+            {% endif %}
+            <a href="/auth/logout" class="sidebar-link" id="sidebar-logout">
+                <i class="bi bi-box-arrow-right"></i><span>Logout</span>
+            </a>
+        </nav>
+    </div>
+</aside>

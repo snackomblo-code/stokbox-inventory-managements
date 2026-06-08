@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% block title %}Tambah Penyesuaian Stok{% endblock %}
+{% block page_title %}Tambah Penyesuaian Stok{% endblock %}
+{% block page_action %}
+<a href="/stok-penyesuaian" class="btn btn-light"><i class="bi bi-arrow-left"></i> Kembali</a>
+{% endblock %}
+
+{% block content %}
+<div class="panel">
+    <div class="panel-body">
+        <form id="formSP">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label">Tanggal Penyesuaian <span class="text-danger">*</span></label>
+                    <input type="date" class="form-control" id="fieldTanggal" required>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">No. Penyesuaian</label>
+                    <input type="text" class="form-control mono" id="fieldNo" readonly>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Barang <span class="text-danger">*</span></label>
+                    <select class="form-select" id="fieldBarang" required>
+                        <option value="">-- Pilih --</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Stok Sistem (saat ini)</label>
+                    <input type="text" class="form-control" id="fieldStokSistem" readonly>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Stok Fisik <span class="text-danger">*</span></label>
+                    <input type="number" class="form-control" id="fieldStokFisik" min="0" value="0" required>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Selisih</label>
+                    <input type="text" class="form-control" id="fieldSelisih" readonly>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Alasan <span class="text-danger">*</span></label>
+                    <select class="form-select" id="fieldAlasan" required>
+                        <option value="">-- Pilih --</option>
+                        <option>Stock Opname</option>
+                        <option>Barang Rusak</option>
+                        <option>Barang Hilang</option>
+                        <option>Salah Input Transaksi</option>
+                        <option>Koreksi Data</option>
+                        <option>Lainnya</option>
+                    </select>
+                </div>
+                <div class="col-12">
+                    <label class="form-label">Catatan</label>
+                    <textarea class="form-control" id="fieldCatatan" rows="2" maxlength="500"></textarea>
+                </div>
+            </div>
+            <div class="mt-4 d-flex justify-content-end gap-2">
+                <a href="/stok-penyesuaian" class="btn btn-light">Batal</a>
+                <button type="submit" class="btn btn-primary" id="btnSimpan"><i class="bi bi-save"></i> Simpan</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', async () => {
+    document.getElementById('fieldTanggal').value = new Date().toISOString().slice(0, 10);
+    await generateNumber();
+    await loadBarang();
+    initSelect2('#fieldBarang');
+    jQuery('#fieldBarang').on('select2:select', () => updateStokSistem());
+    document.getElementById('fieldStokFisik').addEventListener('input', updateSelisih);
+    document.getElementById('formSP').addEventListener('submit', submit);
+});
+
+async function generateNumber() {
+    try {
+        const res = await api.get('/api/stok-penyesuaian/generate-number');
+        document.getElementById('fieldNo').value = res.no_penyesuaian || '';
+    } catch {}
+}
+
+async function loadBarang() {
+    try {
+        const res = await api.get('/api/barang/lookup');
+        const sel = document.getElementById('fieldBarang');
+        (res.data || []).forEach(b => {
+            sel.insertAdjacentHTML('beforeend', `<option value="${b.id}" data-stok="${b.stok}">${escapeHtml(b.kode_barang)} - ${escapeHtml(b.nama_barang)}</option>`);
+        });
+    } catch {}
+}
+
+function updateStokSistem() {
+    const opt = document.querySelector('#fieldBarang option:checked');
+    if (opt) {
+        document.getElementById('fieldStokSistem').value = opt.dataset.stok;
+        updateSelisih();
+    } else {
+        document.getElementById('fieldStokSistem').value = '';
+    }
+}
+
+function updateSelisih() {
+    const sistem = parseInt(document.getElementById('fieldStokSistem').value || 0);
+    const fisik = parseInt(document.getElementById('fieldStokFisik').value || 0);
+    const selisih = fisik - sistem;
+    document.getElementById('fieldSelisih').value = (selisih > 0 ? '+' : '') + formatNumber(selisih);
+}
+
+async function submit(e) {
+    e.preventDefault();
+    const body = {
+        tanggal_penyesuaian: document.getElementById('fieldTanggal').value,
+        barang_id: document.getElementById('fieldBarang').value,
+        stok_fisik: parseInt(document.getElementById('fieldStokFisik').value),
+        alasan: document.getElementById('fieldAlasan').value,
+        catatan: document.getElementById('fieldCatatan').value.trim(),
+    };
+    if (!body.barang_id || !body.alasan) { toast('Validasi', 'Lengkapi field wajib', 'warning'); return; }
+    const btn = document.getElementById('btnSimpan');
+    btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Menyimpan...';
+    try {
+        await api.post('/api/stok-penyesuaian', body);
+        toast('Berhasil', 'Penyesuaian disimpan', 'success');
+        setTimeout(() => window.location.href = '/stok-penyesuaian', 700);
+    } catch (err) { toast('Gagal', err.message, 'danger'); }
+    finally { btn.disabled = false; btn.innerHTML = '<i class="bi bi-save"></i> Simpan'; }
+}
+</script>
+{% endblock %}

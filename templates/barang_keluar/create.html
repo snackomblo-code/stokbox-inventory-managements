@@ -1,0 +1,254 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Edit' if mode == 'edit' else 'Tambah' }} Barang Keluar{% endblock %}
+{% block page_title %}{{ 'Edit' if mode == 'edit' else 'Tambah' }} Barang Keluar{% endblock %}
+{% block page_action %}
+<a href="/barang-keluar" class="btn btn-light"><i class="bi bi-arrow-left"></i> Kembali</a>
+{% endblock %}
+
+{% block content %}
+<div class="panel">
+    <div class="panel-body">
+        <form id="formBK">
+            <input type="hidden" id="fieldId" value="{{ transaksi_id or '' }}">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label">Tanggal Keluar <span class="text-danger">*</span></label>
+                    <input type="date" class="form-control" id="fieldTanggal" required>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">No. Transaksi</label>
+                    <input type="text" class="form-control mono" id="fieldNoTrans" readonly>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Nomor Dokumen</label>
+                    <input type="text" class="form-control" id="fieldNoDokumen">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Tujuan Penerima <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" id="fieldTujuan" required maxlength="150">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Keperluan</label>
+                    <input type="text" class="form-control" id="fieldKeperluan" maxlength="255">
+                </div>
+                <div class="col-12">
+                    <label class="form-label">Catatan</label>
+                    <input type="text" class="form-control" id="fieldCatatan" maxlength="500">
+                </div>
+            </div>
+
+            <hr class="my-4">
+
+            <div class="d-flex align-items-center justify-content-between mb-2">
+                <h6 class="mb-0">Item Barang</h6>
+                <div>
+                    <button type="button" class="btn btn-light" id="btnLookup"><i class="bi bi-search"></i> Pilih Barang</button>
+                    <button type="button" class="btn btn-light" id="btnTambahItem"><i class="bi bi-plus"></i> Tambah Item</button>
+                </div>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-bordered item-table" id="itemTable">
+                    <thead>
+                        <tr>
+                            <th width="50">#</th>
+                            <th width="160">Kode</th>
+                            <th>Nama</th>
+                            <th width="100">Satuan</th>
+                            <th width="100">Stok</th>
+                            <th width="120">Jumlah</th>
+                            <th width="50"></th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+
+            <div class="mt-4 d-flex justify-content-end gap-2">
+                <a href="/barang-keluar" class="btn btn-light">Batal</a>
+                <button type="submit" class="btn btn-primary" id="btnSimpan"><i class="bi bi-save"></i> Simpan</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="modal fade" id="lookupModal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Pilih Barang</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="text" class="form-control mb-2" id="lookupSearch" placeholder="Cari kode / nama...">
+                <div class="table-responsive">
+                    <table class="table table-hover" id="lookupTable">
+                        <thead>
+                            <tr><th width="140">Kode</th><th>Nama</th><th width="100">Satuan</th><th width="100" class="text-end">Stok</th><th width="60"></th></tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const BK_MODE = {{ mode|tojson }};
+const BK_ID = {{ (transaksi_id or '')|tojson }};
+
+document.addEventListener('DOMContentLoaded', async () => {
+    document.getElementById('fieldTanggal').value = new Date().toISOString().slice(0, 10);
+    await generateNumber();
+    document.getElementById('btnTambahItem').addEventListener('click', addEmptyItem);
+    document.getElementById('btnLookup').addEventListener('click', openLookup);
+    document.getElementById('lookupSearch').addEventListener('input', debounce(loadLookup, 300));
+    document.getElementById('formBK').addEventListener('submit', submit);
+    if (BK_MODE === 'edit' && BK_ID) await loadData(BK_ID);
+});
+
+async function generateNumber() {
+    try {
+        const res = await api.get('/api/barang-keluar/generate-number');
+        document.getElementById('fieldNoTrans').value = res.no_transaksi || '';
+    } catch {}
+}
+
+function addEmptyItem() {
+    const tbody = document.querySelector('#itemTable tbody');
+    const i = tbody.children.length;
+    const row = document.createElement('tr');
+    row.innerHTML = `
+        <td>${i + 1}</td>
+        <td><input type="text" class="form-control form-control-sm kode-input" maxlength="50"></td>
+        <td><input type="text" class="form-control form-control-sm nama-input" readonly></td>
+        <td><input type="text" class="form-control form-control-sm satuan-input" readonly></td>
+        <td><input type="text" class="form-control form-control-sm stok-input" readonly></td>
+        <td><input type="number" class="form-control form-control-sm jumlah-input" min="1" value="1"></td>
+        <td class="text-center"><span class="row-remove"><i class="bi bi-trash"></i></span></td>
+    `;
+    tbody.appendChild(row);
+    bindRowEvents(row);
+}
+
+function bindRowEvents(row) {
+    row.querySelector('.row-remove').addEventListener('click', () => { row.remove(); renumberRows(); });
+    const kodeInput = row.querySelector('.kode-input');
+    kodeInput.addEventListener('blur', debounce(async () => {
+        const k = kodeInput.value.trim();
+        if (!k) return;
+        try {
+            const res = await api.get(`/api/barang/lookup?keyword=${encodeURIComponent(k)}`);
+            const item = (res.data || []).find(x => x.kode_barang.toUpperCase() === k.toUpperCase());
+            if (item) fillRow(row, item);
+            else toast('Tidak ditemukan', `Barang "${k}" tidak ada`, 'warning');
+        } catch (err) { toast('Gagal', err.message, 'danger'); }
+    }, 300));
+}
+
+function fillRow(row, item) {
+    row.dataset.barangId = item.id;
+    row.querySelector('.kode-input').value = item.kode_barang;
+    row.querySelector('.nama-input').value = item.nama_barang;
+    row.querySelector('.satuan-input').value = item.satuan;
+    row.querySelector('.stok-input').value = item.stok;
+}
+
+function renumberRows() {
+    document.querySelectorAll('#itemTable tbody tr').forEach((r, i) => r.children[0].textContent = i + 1);
+}
+
+function getItems() {
+    return Array.from(document.querySelectorAll('#itemTable tbody tr')).map(r => {
+        const barangId = r.dataset.barangId;
+        const jumlah = parseInt(r.querySelector('.jumlah-input').value || 0);
+        return barangId && jumlah > 0 ? { barang_id: barangId, jumlah } : null;
+    }).filter(Boolean);
+}
+
+let lookupModal;
+function openLookup() {
+    lookupModal = new bootstrap.Modal(document.getElementById('lookupModal'));
+    lookupModal.show();
+    loadLookup();
+}
+
+async function loadLookup() {
+    const kw = document.getElementById('lookupSearch').value;
+    try {
+        const res = await api.get(`/api/barang/lookup?keyword=${encodeURIComponent(kw)}`);
+        const tbody = document.querySelector('#lookupTable tbody');
+        tbody.innerHTML = (res.data || []).map(it => `
+            <tr>
+                <td class="mono">${escapeHtml(it.kode_barang)}</td>
+                <td>${escapeHtml(it.nama_barang)}</td>
+                <td>${escapeHtml(it.satuan)}</td>
+                <td class="text-end">${formatNumber(it.stok)}</td>
+                <td><button class="btn btn-sm btn-primary" onclick="selectLookupItem('${it.id}')"><i class="bi bi-plus"></i></button></td>
+            </tr>
+        `).join('') || '<tr><td colspan="5" class="text-center text-secondary py-3">Tidak ada data.</td></tr>';
+    } catch (err) { toast('Gagal', err.message, 'danger'); }
+}
+
+async function selectLookupItem(id) {
+    try {
+        const res = await api.get(`/api/barang/${id}`);
+        addEmptyItem();
+        const rows = document.querySelectorAll('#itemTable tbody tr');
+        const row = rows[rows.length - 1];
+        fillRow(row, res);
+        lookupModal.hide();
+    } catch (err) { toast('Gagal', err.message, 'danger'); }
+}
+
+async function loadData(id) {
+    try {
+        const d = await api.get(`/api/barang-keluar/${id}`);
+        document.getElementById('fieldId').value = d.id;
+        document.getElementById('fieldTanggal').value = d.tanggal_keluar;
+        document.getElementById('fieldNoTrans').value = d.no_transaksi;
+        document.getElementById('fieldNoDokumen').value = d.nomor_dokumen || '';
+        document.getElementById('fieldTujuan').value = d.tujuan_penerima || '';
+        document.getElementById('fieldKeperluan').value = d.keperluan || '';
+        document.getElementById('fieldCatatan').value = d.catatan || '';
+        (d.detail || []).forEach(item => {
+            addEmptyItem();
+            const rows = document.querySelectorAll('#itemTable tbody tr');
+            const row = rows[rows.length - 1];
+            row.dataset.barangId = item.barang_id;
+            row.querySelector('.kode-input').value = item.kode_barang;
+            row.querySelector('.nama-input').value = item.nama_barang;
+            row.querySelector('.satuan-input').value = item.satuan;
+            row.querySelector('.stok-input').value = '-';
+            row.querySelector('.jumlah-input').value = item.jumlah;
+        });
+    } catch (err) { toast('Gagal memuat', err.message, 'danger'); }
+}
+
+async function submit(e) {
+    e.preventDefault();
+    const items = getItems();
+    if (items.length === 0) { toast('Validasi', 'Tambahkan minimal satu item barang', 'warning'); return; }
+    const body = {
+        tanggal_keluar: document.getElementById('fieldTanggal').value,
+        tujuan_penerima: document.getElementById('fieldTujuan').value.trim(),
+        keperluan: document.getElementById('fieldKeperluan').value.trim(),
+        nomor_dokumen: document.getElementById('fieldNoDokumen').value.trim(),
+        catatan: document.getElementById('fieldCatatan').value.trim(),
+        items,
+    };
+    const id = document.getElementById('fieldId').value;
+    const btn = document.getElementById('btnSimpan');
+    btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Menyimpan...';
+    try {
+        if (id) await api.put(`/api/barang-keluar/${id}`, body);
+        else await api.post('/api/barang-keluar', body);
+        toast('Berhasil', 'Transaksi disimpan', 'success');
+        setTimeout(() => window.location.href = '/barang-keluar', 700);
+    } catch (err) { toast('Gagal', err.message, 'danger'); }
+    finally { btn.disabled = false; btn.innerHTML = '<i class="bi bi-save"></i> Simpan'; }
+}
+</script>
+{% endblock %}

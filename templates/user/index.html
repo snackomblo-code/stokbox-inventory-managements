@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}Data User{% endblock %}
+{% block page_title %}Data User{% endblock %}
+{% block page_subtitle %}Kelola pengguna aplikasi{% endblock %}
+{% block page_action %}
+{% if is_admin %}
+<button class="btn btn-primary" id="btnTambah"><i class="bi bi-plus-lg"></i> Tambah User</button>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="panel">
+    <div class="panel-body">
+        <div id="tableWrapper"></div>
+    </div>
+</div>
+
+<div class="modal fade" id="formModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form id="formUser">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="formTitle">Tambah User</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="fieldId">
+                    <div class="mb-3">
+                        <label class="form-label">Nama <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="fieldNama" required maxlength="100">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Email <span class="text-danger">*</span></label>
+                        <input type="email" class="form-control" id="fieldEmail" required maxlength="150">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Password <small class="text-secondary" id="pwdHint">(wajib)</small></label>
+                        <input type="password" class="form-control" id="fieldPassword" autocomplete="new-password" minlength="6">
+                    </div>
+                    <div class="row g-2">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Role <span class="text-danger">*</span></label>
+                            <select class="form-select" id="fieldRole" required>
+                                <option value="admin">Administrator</option>
+                                <option value="staff">Staff</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Status</label>
+                            <div class="form-check form-switch mt-2">
+                                <input type="checkbox" class="form-check-input" id="fieldActive" checked>
+                                <label class="form-check-label" for="fieldActive">Aktif</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-primary">Simpan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/user.js"></script>
+{% endblock %}

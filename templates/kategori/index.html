@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Data Kategori{% endblock %}
+{% block page_title %}Data Kategori{% endblock %}
+{% block page_subtitle %}Kelola kategori barang{% endblock %}
+{% block page_action %}
+{% if is_admin %}
+<button class="btn btn-primary" id="btnTambah">
+    <i class="bi bi-plus-lg"></i> Tambah Kategori
+</button>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="panel">
+    <div class="panel-body">
+        <div id="kategoriTable_wrapper"></div>
+    </div>
+</div>
+
+<div class="modal fade" id="formModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form id="formKategori">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="formTitle">Tambah Kategori</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="fieldId">
+                    <div class="mb-3">
+                        <label class="form-label" for="fieldNama">Nama Kategori <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="fieldNama" required maxlength="100">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Icon (Bootstrap Icons)</label>
+                        <input type="hidden" id="fieldIcon">
+                        <div class="icon-picker" id="iconPicker"></div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-primary" id="btnSimpan">Simpan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/kategori.js"></script>
+{% endblock %}

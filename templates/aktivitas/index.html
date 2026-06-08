@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}Catatan Aktivitas{% endblock %}
+{% block page_title %}Catatan Aktivitas{% endblock %}
+{% block page_subtitle %}Audit trail aktivitas pengguna{% endblock %}
+
+{% block content %}
+<div class="panel">
+    <div class="panel-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0" id="aktivitasTable">
+                <thead>
+                    <tr>
+                        <th>Waktu</th>
+                        <th>User</th>
+                        <th>Aksi</th>
+                        <th>Entitas</th>
+                        <th>Keterangan</th>
+                    </tr>
+                </thead>
+                <tbody id="aktivitasBody">
+                    <tr><td colspan="5" class="text-center py-4"><div class="spinner"></div></td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', loadAktivitas);
+
+const AKSI_LABEL = {
+    create: '<span class="badge text-bg-success">Buat</span>',
+    update: '<span class="badge text-bg-primary">Ubah</span>',
+    delete: '<span class="badge text-bg-danger">Hapus</span>',
+    cancel: '<span class="badge text-bg-warning">Batal</span>',
+    import: '<span class="badge text-bg-info">Import</span>',
+    login: '<span class="badge text-bg-secondary">Login</span>',
+    logout: '<span class="badge text-bg-secondary">Logout</span>',
+};
+
+const ENTITAS_LABEL = {
+    barang: 'Barang',
+    kategori: 'Kategori',
+    suplier: 'Suplier',
+    barang_masuk: 'Barang Masuk',
+    barang_keluar: 'Barang Keluar',
+    stok_penyesuaian: 'Penyesuaian Stok',
+    user: 'User',
+    setting: 'Setting',
+    backup: 'Backup',
+};
+
+async function loadAktivitas() {
+    try {
+        const res = await api.get('/api/aktivitas?limit=200');
+        const items = res.data || [];
+        const tbody = document.getElementById('aktivitasBody');
+        if (!items.length) {
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center text-secondary py-4">Belum ada aktivitas.</td></tr>';
+            return;
+        }
+        tbody.innerHTML = items.map(a => {
+            const aksi = AKSI_LABEL[a.aksi] || escapeHtml(a.aksi);
+            const entitas = ENTITAS_LABEL[a.entitas] || escapeHtml(a.entitas);
+            return `<tr>
+                <td class="text-nowrap small">${formatDateTime(a.created_at)}</td>
+                <td><span class="fw-semibold">${escapeHtml(a.user_name)}</span> <span class="text-secondary small">${escapeHtml(a.user_role)}</span></td>
+                <td>${aksi}</td>
+                <td>${entitas}</td>
+                <td>${escapeHtml(a.deskripsi)}</td>
+            </tr>`;
+        }).join('');
+    } catch (err) {
+        document.getElementById('aktivitasBody').innerHTML = `<tr><td colspan="5" class="text-danger text-center py-4">${escapeHtml(err.message)}</td></tr>`;
+    }
+}
+</script>
+{% endblock %}

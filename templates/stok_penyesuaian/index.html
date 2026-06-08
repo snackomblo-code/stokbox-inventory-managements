@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Penyesuaian Stok{% endblock %}
+{% block page_title %}Penyesuaian Stok{% endblock %}
+{% block page_subtitle %}Koreksi stok opname{% endblock %}
+{% block page_action %}
+{% if is_admin %}
+<a href="/stok-penyesuaian/create" class="btn btn-primary">
+    <i class="bi bi-plus-lg"></i> Buat Penyesuaian
+</a>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="panel">
+    <div class="panel-body">
+        <div id="tableWrapper"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/stok_penyesuaian.js"></script>
+{% endblock %}

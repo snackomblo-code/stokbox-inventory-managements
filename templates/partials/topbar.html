@@ -1,0 +1,75 @@
+<header class="topbar">
+    <button class="btn btn-light topbar-sidebar-toggle" type="button" id="sidebarCollapseToggle" aria-label="Toggle sidebar">
+        <i class="bi bi-layout-sidebar-inset"></i>
+    </button>
+    <div class="topbar-spacer"></div>
+
+    {% if is_admin %}
+    <div class="dropdown">
+        <button class="notification-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="Stok hampir habis">
+            <i class="bi bi-bell"></i>
+            {% if low_stock_count > 0 %}
+            <span class="badge rounded-pill text-bg-danger">{{ low_stock_count if low_stock_count < 100 else '99+' }}</span>
+            {% endif %}
+        </button>
+        <div class="dropdown-menu dropdown-menu-end shadow-sm notification-menu">
+            <div class="px-3 py-2">
+                <div class="fw-bold">Stok Hampir Habis</div>
+                <div class="small text-secondary">{{ low_stock_count }} barang perlu diperhatikan.</div>
+            </div>
+            <div class="notification-list">
+                {% if low_stock_count == 0 %}
+                <div class="px-3 py-4 text-center text-secondary border-top">
+                    Tidak ada barang yang hampir habis.
+                </div>
+                {% else %}
+                {% for item in low_stock_items %}
+                <a href="/barang/{{ item.id }}" class="notification-item">
+                    <div class="d-flex justify-content-between gap-2">
+                        <div class="min-w-0">
+                            <div class="notification-item-code text-truncate">{{ item.kode_barang }}</div>
+                            <div class="fw-semibold text-truncate">{{ item.nama_barang }}</div>
+                            <div class="small text-secondary text-truncate">
+                                {{ item.lokasi_barang or 'Lokasi belum diisi' }}
+                            </div>
+                        </div>
+                        <div class="text-end flex-shrink-0">
+                            <div class="badge text-bg-warning">Stok {{ item.stok }}</div>
+                            <div class="small text-secondary mt-1">Min. {{ item.stok_minimum }}</div>
+                        </div>
+                    </div>
+                </a>
+                {% endfor %}
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="dropdown">
+        <button class="profile-chip user-menu-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+            {% if user_photo %}
+            <img src="{{ user_photo }}" alt="{{ user_name }}" class="avatar user-menu-photo">
+            {% else %}
+            <div class="avatar">{{ user_name[0]|upper if user_name else '?' }}</div>
+            {% endif %}
+            <div class="text-start min-w-0">
+                <div class="fw-semibold lh-sm text-truncate">{{ user_name or '-' }}</div>
+                <div class="small text-secondary text-truncate">{{ user_role_label }}</div>
+            </div>
+            <i class="bi bi-chevron-down small text-secondary"></i>
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end shadow-sm user-menu">
+            <li class="px-3 py-2">
+                <div class="fw-semibold text-truncate">{{ user_name or '-' }}</div>
+                <div class="small text-secondary text-truncate">{{ user_email or '-' }}</div>
+                <span class="badge text-bg-light mt-2">{{ user_role_label }}</span>
+            </li>
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item" href="/profile"><i class="bi bi-person-circle me-2"></i>Update Profil</a></li>
+            <li><a class="dropdown-item" href="/change-password"><i class="bi bi-key me-2"></i>Ganti Password</a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item text-danger" href="/auth/logout"><i class="bi bi-box-arrow-right me-2"></i>Logout</a></li>
+        </ul>
+    </div>
+</header>

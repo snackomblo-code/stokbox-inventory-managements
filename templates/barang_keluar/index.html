@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Barang Keluar{% endblock %}
+{% block page_title %}Barang Keluar{% endblock %}
+{% block page_subtitle %}Catatan transaksi barang keluar{% endblock %}
+{% block page_action %}
+{% if is_inventory_role %}
+<a href="/barang-keluar/create" class="btn btn-primary">
+    <i class="bi bi-plus-lg"></i> Tambah Transaksi
+</a>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="panel mb-3">
+    <div class="panel-body">
+        <div class="row g-2 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label">Dari Tanggal</label>
+                <input type="date" class="form-control" id="filterTglAwal">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Sampai Tanggal</label>
+                <input type="date" class="form-control" id="filterTglAkhir">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Tujuan</label>
+                <input type="text" class="form-control" id="filterTujuan" placeholder="Penerima...">
+            </div>
+            <div class="col-md-3 d-flex gap-2">
+                <button class="btn btn-light flex-fill" id="btnFilter"><i class="bi bi-funnel"></i> Filter</button>
+                <button class="btn btn-light" id="btnExportPdf"><i class="bi bi-file-earmark-pdf"></i> PDF</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="panel">
+    <div class="panel-body">
+        <div id="tableWrapper"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/barang_keluar.js"></script>
+{% endblock %}

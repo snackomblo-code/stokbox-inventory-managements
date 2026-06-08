@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}Profil Saya{% endblock %}
+{% block page_title %}Profil Saya{% endblock %}
+{% block page_action %}
+<a href="/change-password" class="btn btn-light"><i class="bi bi-key"></i> Ganti Password</a>
+{% endblock %}
+
+{% block content %}
+<div class="row g-3">
+    <div class="col-md-7">
+        <div class="panel">
+            <div class="panel-header">
+                <h6 class="panel-title">Informasi Akun</h6>
+            </div>
+            <div class="panel-body">
+                <form id="formProfile">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Nama <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="fieldNama" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Email</label>
+                            <input type="email" class="form-control" id="fieldEmail" readonly>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Role</label>
+                            <input type="text" class="form-control" id="fieldRole" readonly>
+                        </div>
+                    </div>
+                    <div class="mt-3">
+                        <button type="submit" class="btn btn-primary"><i class="bi bi-save"></i> Simpan Perubahan</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-5">
+        <div class="panel">
+            <div class="panel-header">
+                <h6 class="panel-title">Foto Profil</h6>
+            </div>
+            <div class="panel-body text-center">
+                <div id="avatarPreview" class="mb-3">
+                    <div class="preview-placeholder mx-auto"><i class="bi bi-person"></i></div>
+                </div>
+                <input type="file" class="form-control mb-2" id="fieldPhoto" accept="image/*">
+                <button class="btn btn-primary w-100" id="btnUploadPhoto"><i class="bi bi-upload"></i> Unggah Foto</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', async () => {
+    await loadProfile();
+    document.getElementById('formProfile').addEventListener('submit', saveProfile);
+    document.getElementById('btnUploadPhoto').addEventListener('click', uploadPhoto);
+});
+
+async function loadProfile() {
+    try {
+        const me = await api.get('/auth/me');
+        document.getElementById('fieldNama').value = me.name || '';
+        document.getElementById('fieldEmail').value = me.email || '';
+        document.getElementById('fieldRole').value = me.role || '';
+        if (me.photo) {
+            document.getElementById('avatarPreview').innerHTML = `<img src="${me.photo}" class="preview-photo rounded-circle" style="object-fit:cover" alt="">`;
+        }
+    } catch (err) { toast('Gagal memuat profil', err.message, 'danger'); }
+}
+
+async function saveProfile(e) {
+    e.preventDefault();
+    try {
+        await api.put('/api/user/profile', { name: document.getElementById('fieldNama').value });
+        toast('Berhasil', 'Profil diperbarui', 'success');
+        await loadProfile();
+    } catch (err) { toast('Gagal', err.message, 'danger'); }
+}
+
+async function uploadPhoto() {
+    const file = document.getElementById('fieldPhoto').files[0];
+    if (!file) { toast('Pilih foto', 'Belum ada file', 'warning'); return; }
+    const fd = new FormData();
+    fd.append('file', file);
+    try {
+        await api.upload('/api/user/profile/photo', fd);
+        toast('Berhasil', 'Foto diperbarui', 'success');
+        await loadProfile();
+    } catch (err) { toast('Gagal', err.message, 'danger'); }
+}
+</script>
+{% endblock %}

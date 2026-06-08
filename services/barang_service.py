@@ -1,0 +1,595 @@
+"""Service untuk barang / item inventaris."""
+from __future__ import annotations
+
+from typing import Optional
+
+from pymongo import DESCENDING
+from pymongo.errors import DuplicateKeyError
+
+from models import barang, barang_keluar, barang_masuk, kategori
+from services import cloudinary_service
+from utils.helpers import (
+    parse_object_id,
+    serialize_doc,
+    serialize_docs,
+    utcnow,
+)
+
+
+def list_barang(keyword: str = "", kategori_id: str = "", stok_filter: str = "") -> list[dict]:
+    query: dict = {}
+    if keyword:
+        query["$or"] = [
+            {"kode_barang": {"$regex": keyword, "$options": "i"}},
+            {"nama_barang": {"$regex": keyword, "$options": "i"}},
+        ]
+    if kategori_id:
+        oid = parse_object_id(kategori_id)
+        if oid is not None:
+            query["kategori_id"] = oid
+    cursor = barang().find(query).sort("created_at", DESCENDING)
+    all_items = list(cursor)
+    if stok_filter == "hampir-habis":
+        items = [d for d in all_items if 0 < int(d.get("stok", 0)) <= int(d.get("stok_minimum", 0))]
+    elif stok_filter == "habis":
+        items = [d for d in all_items if int(d.get("stok", 0)) == 0]
+    elif stok_filter == "tersedia":
+        items = [d for d in all_items if int(d.get("stok", 0)) > int(d.get("stok_minimum", 0))]
+    else:
+        items = all_items
+
+    kategori_map = {d["_id"]: d for d in kategori().find({})}
+    for item in items:
+        kid = item.get("kategori_id")
+        if kid and kid in kategori_map:
+            item["nama_kategori"] = kategori_map[kid].get("nama_kategori")
+            item["icon_kategori"] = kategori_map[kid].get("icon_kategori")
+        else:
+            item["nama_kategori"] = None
+            item["icon_kategori"] = None
+    return serialize_docs(items)
+
+
+def get_barang(barang_id: str) -> Optional[dict]:
+    oid = parse_object_id(barang_id)
+    if oid is None:
+        return None
+    pipeline = [
+        {"$match": {"_id": oid}},
+        {
+            "$lookup": {
+                "from": "kategori",
+                "localField": "kategori_id",
+                "foreignField": "_id",
+                "as": "kategori_info",
+            }
+        },
+        {"$unwind": {"path": "$kategori_info", "preserveNullAndEmptyArrays": True}},
+        {
+            "$addFields": {
+                "nama_kategori": "$kategori_info.nama_kategori",
+                "icon_kategori": "$kategori_info.icon_kategori",
+            }
+        },
+        {"$project": {"kategori_info": 0}},
+    ]
+    docs = list(barang().aggregate(pipeline))
+    return serialize_doc(docs[0]) if docs else None
+
+
+def _validate_common(payload: dict, *, is_update: bool, current: Optional[dict] = None) -> dict:
+    kode = (payload.get("kode_barang") or "").strip().upper()
+    if not kode:
+        raise ValueError("Kode barang wajib diisi.")
+    nama = (payload.get("nama_barang") or "").strip()
+    if not nama:
+        raise ValueError("Nama barang wajib diisi.")
+    satuan = (payload.get("satuan") or "").strip()
+    if not satuan:
+        raise ValueError("Satuan wajib diisi.")
+    kategori_id = parse_object_id(payload.get("kategori_id"))
+    if kategori_id is None or not kategori().find_one({"_id": kategori_id}):
+        raise ValueError("Kategori tidak valid.")
+
+    stok_awal = int(payload.get("stok_awal", 0) or 0)
+    stok_minimum = int(payload.get("stok_minimum", 0) or 0)
+    if stok_awal < 0 or stok_minimum < 0:
+        raise ValueError("Stok tidak boleh negatif.")
+
+    return {
+        "kode_barang": kode,
+        "nama_barang": nama,
+        "deskripsi_barang": (payload.get("deskripsi_barang") or "").strip() or None,
+        "kategori_id": kategori_id,
+        "satuan": satuan,
+        "lokasi_barang": (payload.get("lokasi_barang") or "").strip() or None,
+        "stok_awal": stok_awal,
+        "stok_minimum": stok_minimum,
+        "qrcode": kode,
+        "barcode": kode,
+    }
+
+
+def create_barang(payload: dict) -> dict:
+    data = _validate_common(payload, is_update=False)
+    data["stok"] = data["stok_awal"]
+    data["foto"] = payload.get("foto")
+    data["created_at"] = utcnow()
+    data["updated_at"] = utcnow()
+    try:
+        result = barang().insert_one(data)
+    except DuplicateKeyError:
+        raise ValueError("Kode barang sudah digunakan.") from None
+    created = get_barang(str(result.inserted_id)) or {}
+    if created:
+        from fenrir import session
+        from services import aktivitas_service
+        userId = session.get("userId", "")
+        userName = session.get("userName", "")
+        userRole = session.get("userRole", "")
+        aktivitas_service.log(userId, userName, userRole, "create", "barang", str(result.inserted_id),
+            f"Membuat barang {created.get('kode_barang', '')} - {created.get('nama_barang', '')}")
+        stok = created.get("stok", 0)
+        catat_riwayat_stok(str(result.inserted_id), created.get("kode_barang", ""),
+            created.get("nama_barang", ""), 0, stok, stok, "edit_stok_awal",
+            keterangan="Stok awal")
+    return created
+
+
+def update_barang(barang_id: str, payload: dict) -> Optional[dict]:
+    oid = parse_object_id(barang_id)
+    if oid is None:
+        return None
+    current = barang().find_one({"_id": oid})
+    if not current:
+        return None
+
+    data = _validate_common(payload, is_update=True, current=current)
+    old_photo = current.get("foto")
+    new_photo = payload.get("foto", old_photo)
+
+    has_transactions = (
+        barang_masuk().count_documents({"detail.barang_id": oid}) > 0
+        or barang_keluar().count_documents({"detail.barang_id": oid}) > 0
+    )
+
+    update: dict = {
+        "kode_barang": data["kode_barang"],
+        "nama_barang": data["nama_barang"],
+        "deskripsi_barang": data["deskripsi_barang"],
+        "kategori_id": data["kategori_id"],
+        "satuan": data["satuan"],
+        "lokasi_barang": data["lokasi_barang"],
+        "stok_awal": data["stok_awal"],
+        "stok_minimum": data["stok_minimum"],
+        "qrcode": data["qrcode"],
+        "barcode": data["barcode"],
+        "foto": new_photo,
+        "updated_at": utcnow(),
+    }
+
+    if not has_transactions:
+        current_stok = int(current.get("stok", 0))
+        delta = data["stok_awal"] - int(current.get("stok_awal", 0))
+        update["stok"] = max(0, current_stok + delta)
+    try:
+        barang().update_one({"_id": oid}, {"$set": update})
+    except DuplicateKeyError:
+        raise ValueError("Kode barang sudah digunakan.") from None
+
+    if new_photo != old_photo and old_photo:
+        public_id = (old_photo or {}).get("public_id")
+        if public_id:
+            cloudinary_service.remove_photo(public_id)
+
+    from fenrir import session
+    from services import aktivitas_service
+    userId = session.get("userId", "")
+    userName = session.get("userName", "")
+    userRole = session.get("userRole", "")
+    aktivitas_service.log(userId, userName, userRole, "update", "barang", barang_id,
+        f"Memperbarui barang {current.get('kode_barang', '')}")
+
+    if not has_transactions:
+        old_stok = int(current.get("stok", 0))
+        new_stok = max(0, old_stok + data["stok_awal"] - int(current.get("stok_awal", 0)))
+        if old_stok != new_stok:
+            catat_riwayat_stok(barang_id, current.get("kode_barang", ""), current.get("nama_barang", ""),
+                old_stok, new_stok, new_stok - old_stok, "edit_stok_awal",
+                keterangan="Perubahan stok awal")
+
+    return get_barang(barang_id)
+
+
+def delete_barang(barang_id: str) -> bool:
+    oid = parse_object_id(barang_id)
+    if oid is None:
+        return False
+    has_masuk = barang_masuk().count_documents({"detail.barang_id": oid}) > 0
+    has_keluar = barang_keluar().count_documents({"detail.barang_id": oid}) > 0
+    if has_masuk or has_keluar:
+        raise ValueError(
+            "Barang tidak dapat dihapus karena sudah memiliki transaksi."
+        )
+    current = barang().find_one({"_id": oid})
+    if current and current.get("foto"):
+        public_id = (current["foto"] or {}).get("public_id")
+        if public_id:
+            cloudinary_service.remove_photo(public_id)
+    if current:
+        from fenrir import session
+        from services import aktivitas_service
+        userId = session.get("userId", "")
+        userName = session.get("userName", "")
+        userRole = session.get("userRole", "")
+        aktivitas_service.log(userId, userName, userRole, "delete", "barang", barang_id,
+            f"Menghapus barang {current.get('kode_barang', '')} - {current.get('nama_barang', '')}")
+    result = barang().delete_one({"_id": oid})
+    return result.deleted_count > 0
+
+
+def check_kode(kode: str, exclude_id: str = "") -> bool:
+    """Mengembalikan True jika kode tersedia."""
+    kode = (kode or "").strip().upper()
+    if not kode:
+        return False
+    query: dict = {"kode_barang": kode}
+    exclude_oid = parse_object_id(exclude_id)
+    if exclude_oid is not None:
+        query["_id"] = {"$ne": exclude_oid}
+    return barang().count_documents(query) == 0
+
+
+def dashboard_stats() -> dict:
+    """Ringkasan statistik untuk dashboard - lengkap seperti PHP."""
+    from datetime import date, datetime, timedelta
+    from models import (
+        suplier, barang_masuk, barang_keluar, stok_penyesuaian, users
+    )
+
+    total_barang = barang().count_documents({})
+    total_kategori = kategori().count_documents({})
+    total_suplier = suplier().count_documents({})
+
+    total_masuk_all = barang_masuk().count_documents({})
+    total_keluar_all = barang_keluar().count_documents({})
+
+    # Count for this month
+    today = date.today()
+    this_month_start = today.replace(day=1).isoformat()
+    next_month_start = (today.replace(day=1) + timedelta(days=32)).replace(day=1).isoformat()
+
+    barang_masuk_bulan = barang_masuk().count_documents({
+        "tanggal_masuk": {"$gte": this_month_start, "$lt": next_month_start}
+    })
+    barang_keluar_bulan = barang_keluar().count_documents({
+        "tanggal_keluar": {"$gte": this_month_start, "$lt": next_month_start}
+    })
+    penyesuaian_bulan = stok_penyesuaian().count_documents({
+        "tanggal_penyesuaian": {"$gte": this_month_start, "$lt": next_month_start}
+    })
+
+    # Qty totals for this month
+    masuk_qty = 0
+    for d in barang_masuk().find({
+        "tanggal_masuk": {"$gte": this_month_start, "$lt": next_month_start}
+    }):
+        for x in d.get("detail", []):
+            masuk_qty += int(x.get("jumlah", 0))
+
+    keluar_qty = 0
+    for d in barang_keluar().find({
+        "tanggal_keluar": {"$gte": this_month_start, "$lt": next_month_start}
+    }):
+        for x in d.get("detail", []):
+            keluar_qty += int(x.get("jumlah", 0))
+
+    penyesuaian_qty = 0
+    for d in stok_penyesuaian().find({
+        "tanggal_penyesuaian": {"$gte": this_month_start, "$lt": next_month_start}
+    }):
+        penyesuaian_qty += int(d.get("selisih", 0))
+
+    # Stok hampir habis & kosong
+    hampir_habis = 0
+    stok_kosong = 0
+    for doc in barang().find({}, {"stok": 1, "stok_minimum": 1}):
+        stok = int(doc.get("stok", 0))
+        minimum = int(doc.get("stok_minimum", 0))
+        if stok == 0:
+            stok_kosong += 1
+        if stok <= minimum and stok > 0:
+            hampir_habis += 1
+
+    # User stats
+    total_user = users().count_documents({})
+    total_staff = users().count_documents({"role": "staff"})
+
+    # Total nilai stok & total stok qty
+    total_nilai = 0
+    total_stok = 0
+    for doc in barang().find({}, {"stok": 1, "harga_satuan": 1}):
+        stok = int(doc.get("stok", 0))
+        total_stok += stok
+        total_nilai += stok * int(doc.get("harga_satuan", 0) or 0)
+
+    return {
+        "total_barang": total_barang,
+        "total_stok": total_stok,
+        "total_kategori": total_kategori,
+        "total_suplier": total_suplier,
+        "total_user": total_user,
+        "total_staff": total_staff,
+        "total_masuk": total_masuk_all,
+        "total_keluar": total_keluar_all,
+        "hampir_habis": hampir_habis,
+        "stok_kosong": stok_kosong,
+        "barang_masuk_bulan_ini": barang_masuk_bulan,
+        "qty_barang_masuk_bulan_ini": masuk_qty,
+        "barang_keluar_bulan_ini": barang_keluar_bulan,
+        "qty_barang_keluar_bulan_ini": keluar_qty,
+        "penyesuaian_bulan_ini": penyesuaian_bulan,
+        "qty_penyesuaian_bulan_ini": penyesuaian_qty,
+        "total_nilai": total_nilai,
+    }
+
+
+def list_low_stock(limit: int = 20) -> list[dict]:
+    """Daftar barang dengan stok <= stok_minimum."""
+    items = []
+    for doc in barang().find({}).sort([("stok", 1), ("nama_barang", 1)]):
+        if int(doc.get("stok", 0)) <= int(doc.get("stok_minimum", 0)):
+            items.append(serialize_doc(doc))
+        if len(items) >= limit:
+            break
+    return items
+
+
+def recent_barang_masuk(limit: int = 5) -> list[dict]:
+    """Transaksi barang masuk terbaru + ringkasan item/jumlah."""
+    from models import barang_masuk as bm_col, suplier
+    suplier_map = {s["_id"]: s for s in suplier().find({})}
+    items = []
+    for d in bm_col().find({}).sort("created_at", DESCENDING).limit(limit):
+        detail = d.get("detail", [])
+        total_jumlah = sum(int(x.get("jumlah", 0)) for x in detail)
+        sid = d.get("suplier_id")
+        items.append({
+            "id": str(d["_id"]),
+            "no_transaksi": d.get("no_transaksi"),
+            "tanggal_masuk": d.get("tanggal_masuk"),
+            "nama_suplier": suplier_map.get(sid, {}).get("nama") if sid else None,
+            "total_jumlah": total_jumlah,
+            "item_count": len(detail),
+        })
+    return items
+
+
+def recent_barang_keluar(limit: int = 5) -> list[dict]:
+    """Transaksi barang keluar terbaru + ringkasan item/jumlah."""
+    from models import barang_keluar as bk_col
+    items = []
+    for d in bk_col().find({}).sort("created_at", DESCENDING).limit(limit):
+        detail = d.get("detail", [])
+        total_jumlah = sum(int(x.get("jumlah", 0)) for x in detail)
+        items.append({
+            "id": str(d["_id"]),
+            "no_transaksi": d.get("no_transaksi"),
+            "tanggal_keluar": d.get("tanggal_keluar"),
+            "tujuan_penerima": d.get("tujuan_penerima"),
+            "total_jumlah": total_jumlah,
+            "item_count": len(detail),
+        })
+    return items
+
+
+def monthly_trend(months: int = 6) -> dict:
+    """Data tren 12 bulan terakhir: masuk vs keluar."""
+    from datetime import date, datetime, timedelta
+    from collections import defaultdict
+    from models import barang_masuk as bm_col, barang_keluar as bk_col
+    today = date.today()
+    labels, masuk_map, keluar_map = [], defaultdict(int), defaultdict(int)
+    for i in range(months - 1, -1, -1):
+        m = (today.replace(day=1) - timedelta(days=30 * i))
+        labels.append(m.strftime("%b %y"))
+        masuk_map[m.strftime("%Y-%m")] = 0
+        keluar_map[m.strftime("%Y-%m")] = 0
+
+    for d in bm_col().find({}):
+        t = d.get("tanggal_masuk")
+        if isinstance(t, str):
+            try: t = datetime.fromisoformat(t).date()
+            except: continue
+        if not isinstance(t, date): continue
+        key = t.strftime("%Y-%m")
+        if key in masuk_map:
+            for x in d.get("detail", []):
+                masuk_map[key] += int(x.get("jumlah", 0))
+    for d in bk_col().find({}):
+        t = d.get("tanggal_keluar")
+        if isinstance(t, str):
+            try: t = datetime.fromisoformat(t).date()
+            except: continue
+        if not isinstance(t, date): continue
+        key = t.strftime("%Y-%m")
+        if key in keluar_map:
+            for x in d.get("detail", []):
+                keluar_map[key] += int(x.get("jumlah", 0))
+
+    keys = sorted(masuk_map.keys())
+    return {
+        "labels": [labels[i] for i, k in enumerate(keys)],
+        "masuk": [masuk_map[k] for k in keys],
+        "keluar": [keluar_map[k] for k in keys],
+    }
+
+
+def kategori_distribution() -> dict:
+    """Distribusi total stok per kategori (top 6 + Lainnya)."""
+    kat_map = {k["_id"]: k.get("nama_kategori", "-") for k in kategori().find({})}
+    totals: dict = {}
+    for d in barang().find({}, {"kategori_id": 1, "stok": 1}):
+        name = kat_map.get(d.get("kategori_id"), "Tanpa Kategori")
+        totals[name] = totals.get(name, 0) + int(d.get("stok", 0))
+    if not totals:
+        return {"labels": [], "values": []}
+    sorted_items = sorted(totals.items(), key=lambda x: x[1], reverse=True)
+    if len(sorted_items) > 6:
+        top = sorted_items[:6]
+        rest = sum(v for _, v in sorted_items[6:])
+        top.append(("Lainnya", rest))
+        sorted_items = top
+    return {
+        "labels": [n for n, _ in sorted_items],
+        "values": [v for _, v in sorted_items],
+    }
+
+
+def list_lookup(keyword: str = "", limit: int = 50) -> list[dict]:
+    """Lookup barang untuk modal pilih barang pada transaksi."""
+    q: dict = {}
+    if keyword:
+        q["$or"] = [
+            {"kode_barang": {"$regex": keyword, "$options": "i"}},
+            {"nama_barang": {"$regex": keyword, "$options": "i"}},
+        ]
+    items = list(barang().find(q, {"kode_barang": 1, "nama_barang": 1, "satuan": 1, "stok": 1}).limit(limit))
+    return serialize_docs(items)
+
+
+def import_xlsx(headers: list[str], rows: list[tuple]) -> dict:
+    """Import data barang dari XLSX. Headers adalah baris header; rows adalah baris data.
+    Mengembalikan {success_count, failed_count, errors:[{row, message}]}.
+    """
+    expected = ["kode_barang", "nama_barang", "nama_kategori", "satuan",
+                "stok_awal", "stok_minimum", "lokasi_barang", "deskripsi_barang"]
+    if not all(h in headers for h in ["kode_barang", "nama_barang", "nama_kategori", "satuan"]):
+        raise ValueError("Header minimal: kode_barang, nama_barang, nama_kategori, satuan")
+
+    idx = {h: headers.index(h) if h in headers else -1 for h in expected}
+    success = 0
+    errors = []
+    kat_cache = {k["nama_kategori"].lower(): k for k in kategori().find({})}
+
+    for r_idx, row in enumerate(rows, start=2):
+        try:
+            if not row or all(c is None or str(c).strip() == "" for c in row):
+                continue
+            kode = str(row[idx["kode_barang"]] or "").strip().upper()
+            nama = str(row[idx["nama_barang"]] or "").strip()
+            nama_kat = str(row[idx["nama_kategori"]] or "").strip()
+            satuan = str(row[idx["satuan"]] or "").strip()
+            if not kode or not nama or not nama_kat or not satuan:
+                raise ValueError("Field wajib kosong")
+            kat = kat_cache.get(nama_kat.lower())
+            if not kat:
+                kat_id = kategori().insert_one({
+                    "nama_kategori": nama_kat,
+                    "icon_kategori": "bi-box-seam",
+                    "created_at": utcnow(),
+                    "updated_at": utcnow(),
+                }).inserted_id
+                kat = {"_id": kat_id, "nama_kategori": nama_kat}
+                kat_cache[nama_kat.lower()] = kat
+            else:
+                kat_id = kat["_id"]
+            stok_awal = int(row[idx["stok_awal"]] or 0) if idx["stok_awal"] >= 0 else 0
+            stok_min = int(row[idx["stok_minimum"]] or 0) if idx["stok_minimum"] >= 0 else 0
+            lokasi = str(row[idx["lokasi_barang"]] or "").strip() if idx["lokasi_barang"] >= 0 else ""
+            deskripsi = str(row[idx["deskripsi_barang"]] or "").strip() if idx["deskripsi_barang"] >= 0 else ""
+            doc = {
+                "kode_barang": kode, "nama_barang": nama, "kategori_id": kat_id,
+                "satuan": satuan, "stok_awal": stok_awal, "stok_minimum": stok_min,
+                "stok": stok_awal, "lokasi_barang": lokasi or None,
+                "deskripsi_barang": deskripsi or None,
+                "qrcode": kode, "barcode": kode,
+                "created_at": utcnow(), "updated_at": utcnow(),
+            }
+            barang().insert_one(doc)
+            success += 1
+        except Exception as exc:
+            errors.append({"row": r_idx, "message": str(exc)})
+
+    return {"success_count": success, "failed_count": len(errors), "errors": errors}
+
+
+def top_outgoing_items(limit: int = 5) -> dict:
+    """Top barang paling sering keluar (qty). Return labels, values, table."""
+    from models import barang_keluar as bk_col
+    totals: dict = {}
+    for d in bk_col().find({}):
+        for x in d.get("detail", []):
+            kode = x.get("kode_barang")
+            nama = x.get("nama_barang")
+            key = f"{kode} - {nama}"
+            totals[key] = totals.get(key, 0) + int(x.get("jumlah", 0))
+
+    if not totals:
+        return {"labels": [], "values": [], "table": []}
+
+    sorted_items = sorted(totals.items(), key=lambda x: x[1], reverse=True)[:limit]
+    labels = [k for k, _ in sorted_items]
+    values = [v for _, v in sorted_items]
+    table = [{"label": k, "value": v} for k, v in sorted_items]
+    return {"labels": labels, "values": values, "table": table}
+
+
+def catat_riwayat_stok(
+    barang_id: str,
+    kode_barang: str,
+    nama_barang: str,
+    stok_sebelum: int,
+    stok_sesudah: int,
+    perubahan: int,
+    tipe: str,
+    ref_id: str = "",
+    ref_no: str = "",
+    keterangan: str = "",
+) -> None:
+    from datetime import datetime
+    from models import riwayat_stok as rs_col
+    rs_col().insert_one({
+        "barang_id": barang_id,
+        "kode_barang": kode_barang,
+        "nama_barang": nama_barang,
+        "stok_sebelum": stok_sebelum,
+        "stok_sesudah": stok_sesudah,
+        "perubahan": perubahan,
+        "tipe": tipe,
+        "ref_id": ref_id,
+        "ref_no": ref_no,
+        "keterangan": keterangan,
+        "created_at": datetime.now().isoformat(),
+    })
+
+
+def get_riwayat_stok(barang_id: str, limit: int = 100) -> list[dict]:
+    from models import riwayat_stok as rs_col
+    oid = parse_object_id(barang_id)
+    if oid is None:
+        return []
+    docs = list(rs_col().find({"barang_id": str(oid)}).sort("created_at", -1).limit(limit))
+    return serialize_docs(docs)
+
+
+def recent_penyesuaian(limit: int = 5) -> list[dict]:
+    """Penyesuaian stok terbaru."""
+    from models import stok_penyesuaian as sp_col
+    items = []
+    for d in sp_col().find({}).sort("created_at", DESCENDING).limit(limit):
+        items.append({
+            "id": str(d["_id"]),
+            "no_penyesuaian": d.get("no_penyesuaian"),
+            "tanggal_penyesuaian": d.get("tanggal_penyesuaian"),
+            "kode_barang": d.get("kode_barang"),
+            "nama_barang": d.get("nama_barang"),
+            "stok_sistem": d.get("stok_sistem"),
+            "stok_fisik": d.get("stok_fisik"),
+            "selisih": d.get("selisih"),
+            "jenis": d.get("jenis"),
+            "status": d.get("status"),
+            "alasan": d.get("alasan"),
+        })
+    return items
+

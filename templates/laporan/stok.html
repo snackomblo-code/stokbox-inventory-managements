@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Laporan Stok{% endblock %}
+{% block page_title %}Laporan Stok Barang{% endblock %}
+{% block page_subtitle %}Rekap stok seluruh barang{% endblock %}
+{% block page_action %}
+<a href="/api/laporan/stok/print" target="_blank" class="btn btn-light"><i class="bi bi-file-earmark-pdf"></i> Cetak PDF</a>
+{% endblock %}
+
+{% block content %}
+<div class="panel mb-3">
+    <div class="panel-body">
+        <div class="row g-2 align-items-end">
+            <div class="col-md-4">
+                <label class="form-label">Kategori</label>
+                <select class="form-select" id="filterKategori">
+                    <option value="">Semua</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Status</label>
+                <select class="form-select" id="filterStatus">
+                    <option value="">Semua</option>
+                    <option value="tersedia">Tersedia</option>
+                    <option value="hampir-habis">Hampir Habis</option>
+                    <option value="habis">Habis</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <button class="btn btn-light w-100" id="btnFilter"><i class="bi bi-funnel"></i> Filter</button>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="panel">
+    <div class="panel-body">
+        <div id="tableWrapper"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/laporan_stok.js"></script>
+{% endblock %}

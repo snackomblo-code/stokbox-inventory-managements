@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}Setting Aplikasi{% endblock %}
+{% block page_title %}Pengaturan Aplikasi{% endblock %}
+{% block page_subtitle %}Konfigurasi identitas dan preferensi aplikasi{% endblock %}
+
+{% block content %}
+<div class="row g-3">
+    <div class="col-md-7">
+        <div class="panel">
+            <div class="panel-header">
+                <h6 class="panel-title">Identitas Aplikasi</h6>
+            </div>
+            <div class="panel-body">
+                <form id="formSetting">
+                    <div class="mb-3">
+                        <label class="form-label">Nama Aplikasi <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="fieldNama" required maxlength="150">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Judul Aplikasi (title bar)</label>
+                        <input type="text" class="form-control" id="fieldJudul" maxlength="150">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Tagline</label>
+                        <input type="text" class="form-control" id="fieldTagline" maxlength="255" placeholder="Fondasi aplikasi yang siap dikembangkan">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Nama Perusahaan (untuk kop PDF)</label>
+                        <input type="text" class="form-control" id="fieldPerusahaan" maxlength="150">
+                    </div>
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-save"></i> Simpan Pengaturan</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-5">
+        <div class="panel mb-3">
+            <div class="panel-header">
+                <h6 class="panel-title">Logo Aplikasi</h6>
+            </div>
+            <div class="panel-body text-center">
+                <div id="logoPreview" class="mb-3">
+                    <div class="preview-placeholder mx-auto"><i class="bi bi-image"></i></div>
+                </div>
+                <input type="file" class="form-control mb-2" id="fieldLogo" accept="image/*">
+                <button class="btn btn-primary w-100" id="btnUploadLogo"><i class="bi bi-upload"></i> Unggah Logo</button>
+            </div>
+        </div>
+        <div class="panel">
+            <div class="panel-header">
+                <h6 class="panel-title">Favicon</h6>
+            </div>
+            <div class="panel-body text-center">
+                <div id="faviconPreview" class="mb-3">
+                    <div class="preview-placeholder mx-auto" style="width:64px;height:64px;font-size:1.5rem"><i class="bi bi-bookmark-star"></i></div>
+                </div>
+                <input type="file" class="form-control mb-2" id="fieldFavicon" accept=".ico,.jpg,.jpeg,.png,.webp">
+                <button class="btn btn-primary w-100" id="btnUploadFavicon"><i class="bi bi-upload"></i> Unggah Favicon</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/setting.js"></script>
+{% endblock %}

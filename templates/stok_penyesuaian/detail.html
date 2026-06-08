@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Detail Penyesuaian Stok{% endblock %}
+{% block page_title %}Detail Penyesuaian Stok{% endblock %}
+{% block page_action %}
+<a href="/stok-penyesuaian" class="btn btn-light"><i class="bi bi-arrow-left"></i> Kembali</a>
+{% endblock %}
+
+{% block content %}
+<div id="detailContent" class="text-center py-5">
+    <div class="spinner"></div>
+    <div class="text-secondary mt-2">Memuat data...</div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const SP_ID = {{ penyesuaian_id|tojson }};
+document.addEventListener('DOMContentLoaded', loadDetail);
+
+async function loadDetail() {
+    try {
+        const d = await api.get(`/api/stok-penyesuaian/${SP_ID}`);
+        render(d);
+    } catch (err) {
+        document.getElementById('detailContent').innerHTML = `<div class="text-danger">${escapeHtml(err.message)}</div>`;
+    }
+}
+
+function render(d) {
+    const selisih = parseInt(d.selisih || 0);
+    const selisihText = (selisih > 0 ? '+' : '') + formatNumber(selisih);
+    const status = d.status === 'dibatalkan'
+        ? '<span class="badge badge-status-batal">Dibatalkan</span>'
+        : '<span class="badge badge-status-aktif">Aktif</span>';
+    document.getElementById('detailContent').outerHTML = `
+    <div id="detailContent">
+        <div class="panel">
+            <div class="panel-body">
+                <table class="table table-sm table-borderless mb-0">
+                    <tr><th width="160" class="text-secondary fw-normal">No. Penyesuaian</th><td class="mono">${escapeHtml(d.no_penyesuaian)}</td></tr>
+                    <tr><th class="text-secondary fw-normal">Tanggal</th><td>${formatDate(d.tanggal_penyesuaian)}</td></tr>
+                    <tr><th class="text-secondary fw-normal">Barang</th><td>${escapeHtml(d.nama_barang)} <span class="mono text-secondary">${escapeHtml(d.kode_barang || '')}</span></td></tr>
+                    <tr><th class="text-secondary fw-normal">Stok Sistem</th><td>${formatNumber(d.stok_sistem)}</td></tr>
+                    <tr><th class="text-secondary fw-normal">Stok Fisik</th><td>${formatNumber(d.stok_fisik)}</td></tr>
+                    <tr><th class="text-secondary fw-normal">Selisih</th><td>${selisihText}</td></tr>
+                    <tr><th class="text-secondary fw-normal">Jenis</th><td>${escapeHtml(d.jenis || '-')}</td></tr>
+                    <tr><th class="text-secondary fw-normal">Alasan</th><td>${escapeHtml(d.alasan || '-')}</td></tr>
+                    <tr><th class="text-secondary fw-normal">Catatan</th><td>${escapeHtml(d.catatan || '-')}</td></tr>
+                    <tr><th class="text-secondary fw-normal">User</th><td>${escapeHtml(d.nama_user || '-')}</td></tr>
+                    <tr><th class="text-secondary fw-normal">Status</th><td>${status}</td></tr>
+                    ${d.dibatalkan_oleh ? `<tr><th class="text-secondary fw-normal">Dibatalkan Oleh</th><td>${escapeHtml(d.nama_user_batal || '-')}</td></tr>` : ''}
+                    ${d.dibatalkan_pada ? `<tr><th class="text-secondary fw-normal">Dibatalkan Pada</th><td>${formatDateTime(d.dibatalkan_pada)}</td></tr>` : ''}
+                    ${d.catatan_pembatalan ? `<tr><th class="text-secondary fw-normal">Catatan Pembatalan</th><td>${escapeHtml(d.catatan_pembatalan)}</td></tr>` : ''}
+                </table>
+            </div>
+        </div>
+    </div>`;
+}
+</script>
+{% endblock %}

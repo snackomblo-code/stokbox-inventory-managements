@@ -1,0 +1,13 @@
+fenrir-framework==1.2.2
+pydantic
+Jinja2
+httpx
+pygments
+pymongo
+python-dotenv
+cloudinary
+openpyxl
+qrcode
+Pillow
+python-barcode
+python-multipart

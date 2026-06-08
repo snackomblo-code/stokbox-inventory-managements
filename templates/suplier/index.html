@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Data Suplier{% endblock %}
+{% block page_title %}Data Suplier{% endblock %}
+{% block page_subtitle %}Kelola data suplier / pemasok{% endblock %}
+{% block page_action %}
+{% if is_admin %}
+<button class="btn btn-primary" id="btnTambah">
+    <i class="bi bi-plus-lg"></i> Tambah Suplier
+</button>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="panel">
+    <div class="panel-body">
+        <div id="suplierTable_wrapper"></div>
+    </div>
+</div>
+
+<div class="modal fade" id="formModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form id="formSuplier">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="formTitle">Tambah Suplier</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="fieldId">
+                    <div class="mb-3">
+                        <label class="form-label" for="fieldNama">Nama <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="fieldNama" required maxlength="100">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="fieldPerusahaan">Perusahaan</label>
+                        <input type="text" class="form-control" id="fieldPerusahaan" maxlength="150">
+                    </div>
+                    <div class="row g-2">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label" for="fieldNoHp">No. HP</label>
+                            <input type="text" class="form-control" id="fieldNoHp" maxlength="30">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label" for="fieldEmail">Email</label>
+                            <input type="email" class="form-control" id="fieldEmail" maxlength="150">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="fieldAlamat">Alamat</label>
+                        <textarea class="form-control" id="fieldAlamat" rows="2"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-primary" id="btnSimpan">Simpan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/suplier.js"></script>
+{% endblock %}

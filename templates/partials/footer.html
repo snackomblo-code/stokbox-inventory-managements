@@ -1,0 +1,62 @@
+<div class="toast-container" id="toastContainer"></div>
+<div id="modalContainer"></div>
+<script src="/static/js/api.js?v=4"></script>
+<script src="/static/js/ui.js?v=4"></script>
+<script>
+const APP = {
+    csrfToken: '{{ session.get("csrfToken", "") }}',
+    user: {
+        id: '{{ user_id or "" }}',
+        name: {{ (user_name or '""')|tojson }},
+        role: {{ (user_role or '""')|tojson }}
+    },
+    appName: {{ app_name|tojson }},
+    isAdmin: {{ 'true' if is_admin else 'false' }}
+};
+
+// Initialize sidebar collapse
+(function() {
+    const body = document.body;
+    const collapseBtn = document.getElementById('sidebarCollapseToggle');
+    const mobileBtn = document.getElementById('sidebarToggle');
+    const sidebar = document.getElementById('appSidebar');
+    const menu = document.getElementById('sidebarMenu');
+
+    function applyState(state) {
+        if (state === 'collapsed') {
+            sidebar.classList.add('is-collapsed');
+        } else {
+            sidebar.classList.remove('is-collapsed');
+        }
+    }
+    if (collapseBtn) {
+        collapseBtn.addEventListener('click', () => {
+            const isCollapsed = sidebar.classList.toggle('is-collapsed');
+            localStorage.setItem('sidebarState', isCollapsed ? 'collapsed' : 'expanded');
+        });
+    }
+    if (mobileBtn) {
+        mobileBtn.addEventListener('click', () => menu.classList.toggle('show'));
+    }
+    applyState(localStorage.getItem('sidebarState') || 'expanded');
+
+    // Tooltips
+    if (window.bootstrap) {
+        document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el => {
+            new bootstrap.Tooltip(el);
+        });
+    }
+
+    // Logout via sidebar
+    const sidebarLogout = document.getElementById('sidebar-logout');
+    if (sidebarLogout) {
+        sidebarLogout.addEventListener('click', async (e) => {
+            e.preventDefault();
+            try { await api.post('/auth/logout'); } catch {}
+            window.location.href = '/login';
+        });
+    }
+})();
+</script>
+</body>
+</html>

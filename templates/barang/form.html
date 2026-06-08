@@ -1,0 +1,279 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Edit' if mode == 'edit' else 'Tambah' }} Barang{% endblock %}
+{% block page_title %}{{ 'Edit' if mode == 'edit' else 'Tambah' }} Barang{% endblock %}
+{% block page_action %}
+<a href="/barang" class="btn btn-light">
+    <i class="bi bi-arrow-left"></i> Kembali
+</a>
+{% endblock %}
+
+{% block content %}
+<div class="panel">
+    <div class="panel-body">
+        <form id="formBarang" onsubmit="return false">
+            <input type="hidden" id="fieldId" value="{{ barang_id or '' }}">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label">Kode Barang <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" id="fieldKode" required maxlength="50" style="text-transform:uppercase">
+                    <div class="form-text small" id="kodeHint">&nbsp;</div>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Nama Barang <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" id="fieldNama" required maxlength="150">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Kategori <span class="text-danger">*</span></label>
+                    <select class="form-select" id="fieldKategori" required>
+                        <option value="">-- Pilih --</option>
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Satuan <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" id="fieldSatuan" required maxlength="50" placeholder="pcs, box, kg, ...">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Lokasi</label>
+                    <input type="text" class="form-control" id="fieldLokasi" maxlength="150" placeholder="Rak, gudang, dll.">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Foto Barang</label>
+                    <input type="file" class="form-control" id="fieldFoto" accept="image/*">
+                    <div class="form-text small">JPG/PNG/WEBP, max 2MB. Akan diunggah ke Cloudinary.</div>
+                    <div id="fotoStatus" class="small mt-1"></div>
+                    <div id="fotoPreview" class="mt-2"></div>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Stok Awal{% if mode == 'edit' %} <small class="text-secondary">(saat ini: <span id="stokCurrent">-</span>; selisih akan menambah/mengurangi stok)</small>{% endif %}</label>
+                    <input type="number" class="form-control" id="fieldStokAwal" min="0" value="0">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Stok Minimum</label>
+                    <input type="number" class="form-control" id="fieldStokMin" min="0" value="0">
+                </div>
+                <div class="col-12">
+                    <label class="form-label">Deskripsi</label>
+                    <textarea class="form-control" id="fieldDeskripsi" rows="3"></textarea>
+                </div>
+            </div>
+            <div class="mt-4 d-flex gap-2 justify-content-end">
+                <a href="/barang" class="btn btn-light">Batal</a>
+                <button type="submit" class="btn btn-primary" id="btnSimpan"><i class="bi bi-save"></i> Simpan</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const BARANG_MODE = {{ mode|tojson }};
+const BARANG_ID = {{ (barang_id or '')|tojson }};
+let currentFoto = null;
+let selectedFile = null;
+let selectedBase64 = null;
+let selectedFileName = null;
+let uploadedFoto = null;
+let fileReadPromise = null;
+let fileReadResolve = null;
+
+document.addEventListener('DOMContentLoaded', async () => {
+    await loadKategori();
+    initSelect2('#fieldKategori');
+    if (BARANG_MODE === 'edit' && BARANG_ID) {
+        await loadBarang(BARANG_ID);
+    }
+
+    document.getElementById('fieldKode').addEventListener('blur', debounce(checkKode, 400));
+    document.getElementById('fieldFoto').addEventListener('change', onFotoChange);
+    document.getElementById('formBarang').addEventListener('submit', submit);
+    updateFotoStatus();
+});
+
+function onFotoChange(e) {
+    const file = e.target.files[0] || null;
+    selectedFile = file;
+    selectedBase64 = null;
+    selectedFileName = null;
+    uploadedFoto = null;
+    if (file) {
+        fileReadPromise = new Promise(resolve => { fileReadResolve = resolve; });
+        const reader = new FileReader();
+        reader.onload = ev => {
+            const dataUrl = ev.target.result;
+            selectedBase64 = String(dataUrl).split(',', 2)[1] || '';
+            selectedFileName = file.name;
+            if (fileReadResolve) fileReadResolve();
+            console.log('[onFotoChange] file:', file.name, 'size:', file.size, 'type:', file.type, 'base64_len:', selectedBase64.length);
+            const preview = document.getElementById('fotoPreview');
+            preview.innerHTML = `<img src="${dataUrl}" class="preview-photo rounded border" alt="Preview"><div class="small text-muted mt-1"><i class="bi bi-info-circle"></i> Foto baru akan diunggah saat klik Simpan.</div>`;
+        };
+        reader.onerror = () => {
+            console.error('[onFotoChange] FileReader error:', reader.error);
+            selectedBase64 = null;
+            selectedFileName = null;
+            if (fileReadResolve) fileReadResolve();
+        };
+        reader.readAsDataURL(file);
+    } else {
+        fileReadPromise = null;
+        fileReadResolve = null;
+        const preview = document.getElementById('fotoPreview');
+        if (currentFoto && currentFoto.url) {
+            preview.innerHTML = `<img src="${currentFoto.url}" class="preview-photo rounded" alt=""><div class="small text-muted mt-1"><i class="bi bi-info-circle"></i> Foto saat ini (tidak diubah).</div>`;
+        } else {
+            preview.innerHTML = '';
+        }
+    }
+    updateFotoStatus();
+}
+
+function updateFotoStatus() {
+    const status = document.getElementById('fotoStatus');
+    if (!status) return;
+    if (selectedFile) {
+        const sizeKb = (selectedFile.size / 1024).toFixed(1);
+        status.innerHTML = `<span class="badge bg-warning text-dark"><i class="bi bi-image"></i> File baru dipilih: ${escapeHtml(selectedFile.name)} (${sizeKb} KB) — belum diunggah</span>`;
+    } else if (currentFoto && currentFoto.url) {
+        status.innerHTML = `<span class="badge bg-light text-secondary border"><i class="bi bi-check-circle"></i> Menggunakan foto saat ini (tidak ada file baru dipilih)</span>`;
+    } else {
+        status.innerHTML = `<span class="badge bg-light text-secondary border"><i class="bi bi-dash-circle"></i> Belum ada foto</span>`;
+    }
+}
+
+async function loadKategori() {
+    try {
+        const res = await api.get('/api/kategori');
+        const sel = document.getElementById('fieldKategori');
+        (res.data || []).forEach(k => {
+            sel.insertAdjacentHTML('beforeend', `<option value="${k.id}">${escapeHtml(k.nama_kategori)}</option>`);
+        });
+    } catch (err) { toast('Gagal', err.message, 'danger'); }
+}
+
+async function loadBarang(id) {
+    try {
+        const d = await api.get(`/api/barang/${id}`);
+        document.getElementById('fieldId').value = d.id;
+        document.getElementById('fieldKode').value = d.kode_barang || '';
+        document.getElementById('fieldNama').value = d.nama_barang || '';
+        document.getElementById('fieldKategori').value = d.kategori_id || '';
+        jQuery('#fieldKategori').trigger('change');
+        document.getElementById('fieldSatuan').value = d.satuan || '';
+        document.getElementById('fieldLokasi').value = d.lokasi_barang || '';
+        document.getElementById('fieldStokAwal').value = d.stok_awal || 0;
+        document.getElementById('fieldStokMin').value = d.stok_minimum || 0;
+        document.getElementById('fieldDeskripsi').value = d.deskripsi_barang || '';
+        if (d.stok !== undefined) document.getElementById('stokCurrent').textContent = d.stok;
+        if (d.foto && d.foto.url) {
+            currentFoto = d.foto;
+            document.getElementById('fotoPreview').innerHTML = `<img src="${d.foto.url}" class="preview-photo rounded" alt=""><div class="small text-muted mt-1"><i class="bi bi-info-circle"></i> Foto saat ini (tidak diubah).</div>`;
+        }
+        updateFotoStatus();
+    } catch (err) { toast('Gagal memuat', err.message, 'danger'); }
+}
+
+async function checkKode() {
+    const kode = document.getElementById('fieldKode').value.trim().toUpperCase();
+    if (!kode) return;
+    const id = document.getElementById('fieldId').value;
+    try {
+        const res = await api.get(`/api/barang/check-kode?kode=${encodeURIComponent(kode)}&exclude_id=${id}`);
+        const hint = document.getElementById('kodeHint');
+        if (res.available) {
+            hint.innerHTML = '<span class="text-success"><i class="bi bi-check-circle"></i> Kode tersedia</span>';
+        } else {
+            hint.innerHTML = '<span class="text-danger"><i class="bi bi-x-circle"></i> Kode sudah digunakan</span>';
+        }
+    } catch {}
+}
+
+async function uploadFoto() {
+    const file = document.getElementById('fieldFoto').files[0];
+    if (!file) return null;
+    const kode = document.getElementById('fieldKode').value || 'barang';
+    const status = document.getElementById('fotoStatus');
+    const prevStatus = status.innerHTML;
+    status.innerHTML = `<span class="badge bg-info text-dark"><span class="spinner-border spinner-border-sm me-1"></span> Mengunggah ${escapeHtml(selectedFileName || file.name)}...</span>`;
+
+    // Tunggu FileReader dari onFotoChange selesai (kalau belum)
+    if (fileReadPromise) {
+        try { await fileReadPromise; } catch (_) {}
+    }
+    let base64 = selectedBase64;
+    if (!base64) {
+        status.innerHTML = `<span class="badge bg-danger"><i class="bi bi-x-circle"></i> File kosong atau tidak bisa dibaca</span>`;
+        toast('Upload foto gagal', 'File kosong atau tidak bisa dibaca.', 'warning');
+        return null;
+    }
+
+    try {
+        const url = `/api/barang/upload-foto-raw?kode=${encodeURIComponent(kode)}`;
+        console.log('[uploadFoto] sending raw file:', file.name, 'size:', file.size, 'type:', file.type);
+        const res = await new Promise((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', url);
+            xhr.withCredentials = true;
+            xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+            xhr.setRequestHeader('Accept', 'application/json');
+            xhr.responseType = 'text';
+            xhr.onload = () => {
+                const text = xhr.responseText;
+                let data;
+                try { data = text ? JSON.parse(text) : null; } catch { data = text; }
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    resolve(data);
+                } else {
+                    const msg = (data && (data.error || data.message || data.detail)) || `HTTP ${xhr.status}`;
+                    const err = new Error(msg);
+                    err.status = xhr.status;
+                    err.data = data;
+                    reject(err);
+                }
+            };
+            xhr.onerror = () => reject(new Error('Kesalahan jaringan saat upload.'));
+            xhr.send(file);
+        });
+        uploadedFoto = res;
+        status.innerHTML = `<span class="badge bg-success"><i class="bi bi-check-circle"></i> Foto berhasil diunggah: ${escapeHtml(selectedFileName || file.name)}</span>`;
+        return res;
+    } catch (err) {
+        status.innerHTML = `<span class="badge bg-danger"><i class="bi bi-x-circle"></i> Gagal unggah: ${escapeHtml(err.message)}</span>` + (prevStatus ? ` <button type="button" class="btn btn-link btn-sm p-0" id="fotoStatusReset">Kembalikan</button>` : '');
+        const reset = document.getElementById('fotoStatusReset');
+        if (reset) reset.addEventListener('click', () => { status.innerHTML = prevStatus; updateFotoStatus(); });
+        toast('Upload foto gagal', err.message, 'warning');
+        return null;
+    }
+}
+
+async function submit(e) {
+    e.preventDefault();
+    const btn = document.getElementById('btnSimpan');
+    btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Menyimpan...';
+    try {
+        const foto = await uploadFoto();
+        const body = {
+            kode_barang: document.getElementById('fieldKode').value.trim().toUpperCase(),
+            nama_barang: document.getElementById('fieldNama').value.trim(),
+            kategori_id: document.getElementById('fieldKategori').value,
+            satuan: document.getElementById('fieldSatuan').value.trim(),
+            lokasi_barang: document.getElementById('fieldLokasi').value.trim(),
+            stok_awal: parseInt(document.getElementById('fieldStokAwal').value || 0),
+            stok_minimum: parseInt(document.getElementById('fieldStokMin').value || 0),
+            deskripsi_barang: document.getElementById('fieldDeskripsi').value.trim(),
+        };
+        if (foto) body.foto = foto;
+        else if (currentFoto && BARANG_MODE === 'edit') body.foto = currentFoto;
+        const id = document.getElementById('fieldId').value;
+        if (id) await api.put(`/api/barang/${id}`, body);
+        else await api.post('/api/barang', body);
+        toast('Berhasil', 'Data barang disimpan' + (foto ? ' (foto baru terunggah)' : (currentFoto ? ' (foto tidak berubah)' : ' (tanpa foto)')), 'success');
+        setTimeout(() => window.location.href = '/barang', 700);
+    } catch (err) {
+        toast('Gagal menyimpan', err.message, 'danger');
+    } finally {
+        btn.disabled = false; btn.innerHTML = '<i class="bi bi-save"></i> Simpan';
+    }
+}
+</script>
+{% endblock %}

@@ -1,0 +1,461 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+{% block page_subtitle %}Ringkasan kondisi stok dan aktivitas inventaris.{% endblock %}
+
+{% block content %}
+<div class="row g-3 mb-4">
+    <div class="col-6 col-md-6 col-xl-3">
+        <div class="summary-card">
+            <div class="summary-card-body d-flex align-items-center gap-3">
+                <div class="icon-box"><i class="bi bi-box-seam-fill"></i></div>
+                <div>
+                    <div class="text-secondary small">Total Item Barang</div>
+                    <div class="fw-bold fs-4">{{ stats.total_barang or 0 }}</div>
+                    <div class="small text-secondary mt-1">Total qty: {{ formatNumber(stats.total_stok or 0) }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-6 col-xl-3">
+        <div class="summary-card">
+            <div class="summary-card-body d-flex align-items-center gap-3">
+                <div class="icon-box warning"><i class="bi bi-exclamation-triangle-fill"></i></div>
+                <div>
+                    <div class="text-secondary small">Stok Hampir Habis</div>
+                    <div class="fw-bold fs-4">{{ stats.hampir_habis or 0 }}</div>
+                    <div class="small text-secondary mt-1">Stok kosong: {{ stats.stok_kosong or 0 }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-6 col-xl-3">
+        <div class="summary-card">
+            <div class="summary-card-body d-flex align-items-center gap-3">
+                <div class="icon-box success"><i class="bi bi-box-arrow-in-down"></i></div>
+                <div>
+                    <div class="text-secondary small">Barang Masuk Bulan Ini</div>
+                    <div class="fw-bold fs-4">{{ stats.barang_masuk_bulan_ini or 0 }}</div>
+                    <div class="small text-secondary mt-1">Total qty: {{ formatNumber(stats.qty_barang_masuk_bulan_ini or 0) }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-6 col-xl-3">
+        <div class="summary-card">
+            <div class="summary-card-body d-flex align-items-center gap-3">
+                <div class="icon-box danger"><i class="bi bi-box-arrow-up"></i></div>
+                <div>
+                    <div class="text-secondary small">Barang Keluar Bulan Ini</div>
+                    <div class="fw-bold fs-4">{{ stats.barang_keluar_bulan_ini or 0 }}</div>
+                    <div class="small text-secondary mt-1">Total qty: {{ formatNumber(stats.qty_barang_keluar_bulan_ini or 0) }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-6 col-xl-3">
+        <div class="summary-card">
+            <div class="summary-card-body d-flex align-items-center gap-3">
+                <div class="icon-box info"><i class="bi bi-sliders"></i></div>
+                <div>
+                    <div class="text-secondary small">Penyesuaian Bulan Ini</div>
+                    <div class="fw-bold fs-4">{{ stats.penyesuaian_bulan_ini or 0 }}</div>
+                    <div class="small text-secondary mt-1">Total koreksi qty: {{ formatNumber(stats.qty_penyesuaian_bulan_ini or 0) }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-6 col-xl-3">
+        <div class="summary-card">
+            <div class="summary-card-body d-flex align-items-center gap-3">
+                <div class="icon-box secondary"><i class="bi bi-tags-fill"></i></div>
+                <div>
+                    <div class="text-secondary small">Kategori</div>
+                    <div class="fw-bold fs-4">{{ stats.total_kategori or 0 }}</div>
+                    <div class="small text-secondary mt-1">Master kategori barang</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-6 col-xl-3">
+        <div class="summary-card">
+            <div class="summary-card-body d-flex align-items-center gap-3">
+                <div class="icon-box"><i class="bi bi-people-fill"></i></div>
+                <div>
+                    <div class="text-secondary small">Total User</div>
+                    <div class="fw-bold fs-4">{{ stats.total_user or 0 }}</div>
+                    <div class="small text-secondary mt-1">Staff: {{ stats.total_staff or 0 }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-6 col-xl-3">
+        <div class="summary-card">
+            <div class="summary-card-body d-flex align-items-center gap-3">
+                <div class="icon-box success"><i class="bi bi-truck"></i></div>
+                <div>
+                    <div class="text-secondary small">Total Supplier</div>
+                    <div class="fw-bold fs-4">{{ stats.total_suplier or 0 }}</div>
+                    <div class="small text-secondary mt-1">Data pemasok barang</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4 mb-4">
+    <div class="col-12 col-xl-8">
+        <div class="panel p-4 h-100">
+            <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-3">
+                <div>
+                    <div class="fw-bold">Barang Masuk vs Keluar</div>
+                    <div class="small text-secondary">Total qty barang masuk dan keluar 6 bulan terakhir.</div>
+                </div>
+            </div>
+            <div style="height: 320px;">
+                <canvas id="monthlyFlowChart"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-xl-4">
+        <div class="panel p-4 h-100">
+            <div class="fw-bold mb-1">Stok per Kategori</div>
+            <div class="small text-secondary mb-3">Total qty stok berdasarkan kategori barang.</div>
+            <div style="height: 320px;">
+                <canvas id="stockByCategoryChart"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-12">
+        <div class="panel p-4">
+            <div class="fw-bold mb-1">Top 5 Barang Paling Sering Keluar</div>
+            <div class="small text-secondary mb-3">Berdasarkan total qty barang keluar.</div>
+            <div style="height: 300px;">
+                <canvas id="topOutgoingItemsChart"></canvas>
+            </div>
+            <div class="table-responsive mt-3">
+                <table class="table table-sm align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>Barang</th>
+                            <th class="text-end">Qty Keluar</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in top_outgoing.table %}
+                        <tr>
+                            <td>{{ item.label }}</td>
+                            <td class="text-end fw-semibold">{{ item.value }}</td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="2" class="text-center text-secondary py-3">Belum ada data barang keluar.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-12 col-xl-6">
+        <div class="panel p-4 h-100">
+            <div class="d-flex align-items-center justify-content-between gap-3 mb-3">
+                <div>
+                    <div class="fw-bold">Stok Hampir Habis</div>
+                    <div class="small text-secondary">5 barang dengan stok paling rendah.</div>
+                </div>
+                {% if is_inventory_role %}
+                <a href="/barang?stok=hampir-habis" class="btn btn-sm btn-outline-dark">Lihat</a>
+                {% endif %}
+            </div>
+            <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>Barang</th>
+                            <th>Lokasi</th>
+                            <th class="text-end">Stok</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in low_stock_items[:5] %}
+                        <tr>
+                            <td>
+                                <span class="fw-semibold d-block">{{ item.kode_barang }}</span>
+                                {{ item.nama_barang }}
+                            </td>
+                            <td>{{ item.lokasi_barang or '-' }}</td>
+                            <td class="text-end">
+                                <span class="badge text-bg-warning">{{ item.stok }} {{ item.satuan or '' }}</span>
+                                <div class="small text-secondary">Min. {{ item.stok_minimum }}</div>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="3" class="text-center text-secondary py-4">Tidak ada stok hampir habis.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-xl-6">
+        <div class="panel p-4 h-100">
+            <div class="fw-bold mb-3">Penyesuaian Stok Terbaru</div>
+            <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>Tanggal</th>
+                            <th>Barang</th>
+                            <th class="text-end">Selisih</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in recent_penyesuaian %}
+                        {% set selisih = item.selisih | int %}
+                        <tr>
+                            <td>{{ formatDate(item.tanggal_penyesuaian) }}</td>
+                            <td>
+                                <span class="fw-semibold d-block">{{ item.kode_barang }}</span>
+                                {{ item.nama_barang }}
+                            </td>
+                            <td class="text-end fw-semibold {{ 'text-success' if selisih > 0 else ('text-danger' if selisih < 0 else 'text-secondary') }}">
+                                {{ selisih }}
+                            </td>
+                            <td>
+                                {% if item.status == 'aktif' %}
+                                <span class="badge text-bg-success">Aktif</span>
+                                {% else %}
+                                <span class="badge text-bg-secondary">Dibatalkan</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="4" class="text-center text-secondary py-4">Belum ada penyesuaian stok.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-xl-6">
+        <div class="panel p-4 h-100">
+            <div class="fw-bold mb-3">Barang Masuk Terbaru</div>
+            <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>Tanggal</th>
+                            <th>No. Transaksi</th>
+                            <th>Supplier</th>
+                            <th class="text-end">Qty</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in recent_masuk %}
+                        <tr>
+                            <td>{{ formatDate(item.tanggal_masuk) }}</td>
+                            <td class="fw-semibold"><a href="/barang-masuk/{{ item.id }}">{{ item.no_transaksi }}</a></td>
+                            <td>{{ item.nama_suplier or '-' }}</td>
+                            <td class="text-end">{{ item.total_jumlah }}</td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="4" class="text-center text-secondary py-4">Belum ada barang masuk.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-xl-6">
+        <div class="panel p-4 h-100">
+            <div class="fw-bold mb-3">Barang Keluar Terbaru</div>
+            <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>Tanggal</th>
+                            <th>No. Transaksi</th>
+                            <th>Tujuan</th>
+                            <th class="text-end">Qty</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in recent_keluar %}
+                        <tr>
+                            <td>{{ formatDate(item.tanggal_keluar) }}</td>
+                            <td class="fw-semibold"><a href="/barang-keluar/{{ item.id }}">{{ item.no_transaksi }}</a></td>
+                            <td>{{ item.tujuan_penerima or '-' }}</td>
+                            <td class="text-end">{{ item.total_jumlah }}</td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="4" class="text-center text-secondary py-4">Belum ada barang keluar.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const trendData = {{ trend_data|tojson }};
+const kategoriDist = {{ kategori_dist|tojson }};
+const topOutgoingData = {{ top_outgoing|tojson }};
+
+document.addEventListener('DOMContentLoaded', () => {
+    if (typeof Chart === 'undefined') return;
+
+    const gridColor = 'rgba(16, 24, 40, 0.08)';
+    const labelColor = '#475467';
+
+    const barValueLabelPlugin = {
+        id: 'barValueLabel',
+        afterDatasetsDraw(chart) {
+            const ctx = chart.ctx;
+            const dataset = chart.data.datasets[0];
+            const meta = chart.getDatasetMeta(0);
+            ctx.save();
+            ctx.font = '600 12px Inter, system-ui, sans-serif';
+            ctx.textBaseline = 'middle';
+            meta.data.forEach((bar, i) => {
+                const value = dataset.data[i] ?? 0;
+                const text = String(value);
+                const pos = bar.tooltipPosition();
+                const chartRight = chart.chartArea.right;
+                const inside = pos.x + 34 > chartRight;
+                ctx.fillStyle = inside ? '#ffffff' : labelColor;
+                ctx.textAlign = inside ? 'right' : 'left';
+                ctx.fillText(text, inside ? pos.x - 8 : pos.x + 8, pos.y);
+            });
+            ctx.restore();
+        }
+    };
+
+    const commonOptions = {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: {
+                labels: { boxWidth: 12, boxHeight: 12, color: labelColor }
+            }
+        },
+        scales: {
+            x: {
+                grid: { display: false },
+                ticks: { color: labelColor }
+            },
+            y: {
+                beginAtZero: true,
+                grid: { color: gridColor },
+                ticks: { color: labelColor, precision: 0 }
+            }
+        }
+    };
+
+    new Chart(document.getElementById('monthlyFlowChart'), {
+        type: 'line',
+        data: {
+            labels: trendData.labels || [],
+            datasets: [
+                {
+                    label: 'Barang Masuk',
+                    data: trendData.masuk || [],
+                    borderColor: '#16a34a',
+                    backgroundColor: 'rgba(22,163,74,0.12)',
+                    borderWidth: 2,
+                    tension: 0.35,
+                    fill: true,
+                    pointRadius: 3
+                },
+                {
+                    label: 'Barang Keluar',
+                    data: trendData.keluar || [],
+                    borderColor: '#dc2626',
+                    backgroundColor: 'rgba(220,38,38,0.10)',
+                    borderWidth: 2,
+                    tension: 0.35,
+                    fill: true,
+                    pointRadius: 3
+                }
+            ]
+        },
+        options: commonOptions
+    });
+
+    new Chart(document.getElementById('stockByCategoryChart'), {
+        type: 'doughnut',
+        data: {
+            labels: kategoriDist.labels || [],
+            datasets: [{
+                data: kategoriDist.values || [],
+                backgroundColor: ['#2563eb', '#16a34a', '#f59e0b', '#dc2626', '#7c3aed', '#0891b2', '#4b5563', '#ea580c'],
+                borderWidth: 0
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: { boxWidth: 12, boxHeight: 12, color: labelColor }
+                }
+            },
+            cutout: '62%'
+        }
+    });
+
+    const topVals = (topOutgoingData.values || []).map(v => Number(v) || 0);
+
+    new Chart(document.getElementById('topOutgoingItemsChart'), {
+        type: 'bar',
+        data: {
+            labels: topOutgoingData.labels || [],
+            datasets: [{
+                label: 'Qty Keluar',
+                data: topVals,
+                indexAxis: 'y',
+                backgroundColor: '#2563eb',
+                borderRadius: 6,
+                maxBarThickness: 34
+            }]
+        },
+        options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            layout: { padding: { right: 34 } },
+            plugins: { legend: { display: false } },
+            scales: {
+                x: {
+                    beginAtZero: true,
+                    suggestedMax: Math.max(1, ...topVals) + 2,
+                    grid: { color: gridColor },
+                    ticks: { color: labelColor, precision: 0 }
+                },
+                y: {
+                    grid: { display: false },
+                    ticks: { color: labelColor }
+                }
+            }
+        },
+        plugins: [barValueLabelPlugin]
+    });
+});
+</script>
+{% endblock %}

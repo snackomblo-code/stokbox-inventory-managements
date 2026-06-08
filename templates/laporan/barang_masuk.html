@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% block title %}Laporan Barang Masuk{% endblock %}
+{% block page_title %}Laporan Barang Masuk{% endblock %}
+{% block page_subtitle %}Rekap transaksi barang masuk{% endblock %}
+{% block page_action %}
+<a href="javascript:void(0)" id="btnPrintPdf" class="btn btn-light"><i class="bi bi-file-earmark-pdf"></i> Cetak PDF</a>
+{% endblock %}
+
+{% block content %}
+<div class="panel mb-3">
+    <div class="panel-body">
+        <div class="row g-2 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label">Dari Tanggal</label>
+                <input type="date" class="form-control" id="filterTglAwal">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Sampai Tanggal</label>
+                <input type="date" class="form-control" id="filterTglAkhir">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Suplier</label>
+                <select class="form-select" id="filterSuplier"><option value="">Semua</option></select>
+            </div>
+            <div class="col-md-3">
+                <button class="btn btn-light w-100" id="btnFilter"><i class="bi bi-funnel"></i> Filter</button>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="panel">
+    <div class="panel-body">
+        <div id="tableWrapper"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', async () => {
+    try {
+        const res = await api.get('/api/suplier');
+        const sel = document.getElementById('filterSuplier');
+        (res.data || []).forEach(s => sel.insertAdjacentHTML('beforeend', `<option value="${s.id}">${escapeHtml(s.nama)}</option>`));
+        initSelect2('#filterSuplier');
+    } catch {}
+    await loadTable();
+    document.getElementById('btnFilter').addEventListener('click', loadTable);
+    document.getElementById('btnPrintPdf').addEventListener('click', () => {
+        const params = new URLSearchParams();
+        const t1 = document.getElementById('filterTglAwal').value;
+        const t2 = document.getElementById('filterTglAkhir').value;
+        const s = document.getElementById('filterSuplier').value;
+        if (t1) params.set('tanggal_awal', t1);
+        if (t2) params.set('tanggal_akhir', t2);
+        if (s) params.set('suplier_id', s);
+        window.open(`/api/laporan/barang-masuk/print?${params}`, '_blank');
+    });
+});
+
+async function loadTable() {
+    const params = new URLSearchParams();
+    const t1 = document.getElementById('filterTglAwal').value;
+    const t2 = document.getElementById('filterTglAkhir').value;
+    const s = document.getElementById('filterSuplier').value;
+    if (t1) params.set('tanggal_awal', t1);
+    if (t2) params.set('tanggal_akhir', t2);
+    if (s) params.set('suplier_id', s);
+    try {
+        const res = await api.get(`/api/laporan/barang-masuk?${params}`);
+        renderTable(res.data || []);
+    } catch (err) { toast('Gagal', err.message, 'danger'); }
+}
+
+function renderTable(items) {
+    const total = items.reduce((s, x) => s + (parseInt(x.jumlah) || 0), 0);
+    const html = `
+        <table class="table table-hover align-middle">
+            <thead>
+                <tr>
+                    <th>Tanggal</th>
+                    <th>No. Transaksi</th>
+                    <th>Suplier</th>
+                    <th>Kode</th>
+                    <th>Nama</th>
+                    <th class="text-end">Jumlah</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${items.length === 0
+                    ? '<tr><td colspan="6" class="text-center text-secondary py-4">Belum ada data.</td></tr>'
+                    : items.map(it => `
+                        <tr>
+                            <td>${formatDate(it.tanggal_masuk)}</td>
+                            <td class="mono">${escapeHtml(it.no_transaksi || '-')}</td>
+                            <td>${escapeHtml(it.nama_suplier || '-')}</td>
+                            <td class="mono">${escapeHtml(it.kode_barang || '-')}</td>
+                            <td>${escapeHtml(it.nama_barang || '-')}</td>
+                            <td class="text-end">${formatNumber(it.jumlah)}</td>
+                        </tr>
+                    `).join('')}
+            </tbody>
+            <tfoot>
+                <tr class="table-light">
+                    <th colspan="5" class="text-end">Total</th>
+                    <th class="text-end">${formatNumber(total)}</th>
+                </tr>
+            </tfoot>
+        </table>
+    `;
+    document.getElementById('tableWrapper').innerHTML = html;
+}
+</script>
+{% endblock %}

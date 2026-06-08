@@ -1,0 +1,42 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+
+# Virtual env
+.venv/
+venv/
+env/
+
+# Environment
+.env
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Uploads (user-generated content)
+static/uploads/barang/*
+static/uploads/users/*
+static/uploads/settings/*
+!static/uploads/barang/.gitkeep
+!static/uploads/users/.gitkeep
+!static/uploads/settings/.gitkeep
+
+# Local data
+instance/
+*.db
+
+# Test / coverage
+.coverage
+htmlcov/
+.pytest_cache/
