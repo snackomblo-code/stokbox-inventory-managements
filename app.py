@@ -1,4 +1,4 @@
-"""Aplikasi InventarisKu - Sistem Manajemen Inventaris berbasis Fenrir + MongoDB Atlas + Cloudinary."""
+"""Aplikasi InventarisKu - Sistem Manajemen Inventaris berbasis Fenrir v3.1.3 + MongoDB Atlas + Cloudinary."""
 from __future__ import annotations
 
 import os
@@ -6,8 +6,12 @@ import sys
 from datetime import date, datetime
 
 from dotenv import load_dotenv
-from fenrir import Fenrir, HTTPException, JSONResponse, render_template, send_file, send_from_directory
+from fenrir import (
+    Fenrir, HTTPException, JSONResponse, render_template, send_file, send_from_directory,
+    CORSMiddleware, GZipMiddleware, RequestIDMiddleware, RateLimitMiddleware,
+)
 from fenrir.templating import Jinja2Renderer
+from fenrir.features import init_fenrir_monitoring
 
 from config.database import ping as mongo_ping
 
@@ -18,11 +22,23 @@ STATIC_DIR = os.path.join(BASE_DIR, "static")
 
 app = Fenrir(
     title="InventarisKu API",
-    version="1.0.0",
+    version="3.1.3",
     template_folder="templates",
+    dev_mode=os.getenv("FENRIR_DEV_MODE", "0") == "1",
 )
 
+# ── Performance Middleware (Fenrir v3.1.3) ─────────────────────────────
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True)
+app.add_middleware(GZipMiddleware, minimum_size=500, compresslevel=6)
+app.add_middleware(RequestIDMiddleware)
+app.add_middleware(RateLimitMiddleware, max_requests=200, window_seconds=60)
 
+
+# ── Monitoring (Fenrir v3.1.3) ──────────────────────────────────────────
+init_fenrir_monitoring(app)
+
+
+# ── Template Helpers ─────────────────────────────────────────────────────
 def _format_number(value, default="0"):
     try:
         if value is None: return default
@@ -69,7 +85,7 @@ def _format_datetime(value, default="-"):
 _renderer = Jinja2Renderer(os.path.join(BASE_DIR, "templates"))
 _renderer.env.globals["APP"] = {
     "name": os.getenv("APP_NAME", "InventarisKu"),
-    "version": "1.0.0",
+    "version": "3.1.3",
 }
 _renderer.env.filters["formatNumber"] = _format_number
 _renderer.env.filters["formatRupiah"] = _format_rupiah
@@ -165,7 +181,7 @@ async def _error_context(detail: str = "") -> dict:
         "app_favicon": favicon if (favicon and (favicon.startswith("/") or favicon.startswith("http"))) else "/favicon.ico",
         "APP": {
             "name": os.getenv("APP_NAME", "InventarisKu"),
-            "version": "1.0.0",
+            "version": "3.1.3",
         },
     }
 
